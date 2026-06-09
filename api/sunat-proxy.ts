@@ -13,13 +13,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: 'Dominio no autorizado' });
 
   const token = process.env.VISIONER7_API_TOKEN;
-  if (!token?.trim()) {
-    console.error('❌ VISIONER7_API_TOKEN no configurado en Vercel');
-    return res.status(500).json({
-      error: 'Token de facturación no configurado',
-      details: 'Configura VISIONER7_API_TOKEN en Vercel → Settings → Environment Variables'
-    });
-  }
+  if (!token?.trim())
+    return res.status(500).json({ error: 'VISIONER7_API_TOKEN no configurado en Vercel' });
 
   try {
     const response = await fetch(targetUrl, {
@@ -31,13 +26,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       body: JSON.stringify(req.body),
     });
-
-    const contentType = response.headers.get('content-type') || 'application/json';
     const data = await response.text();
-    console.log(`📡 [Proxy] ${targetUrl} → HTTP ${response.status}`);
-    res.status(response.status).setHeader('Content-Type', contentType).send(data);
+    console.log(`📡 [Proxy] HTTP ${response.status}`);
+    res.status(response.status)
+       .setHeader('Content-Type', response.headers.get('content-type') || 'application/json')
+       .send(data);
   } catch (error: any) {
-    console.error(`❌ [Proxy Error]: ${error.message}`);
-    res.status(500).json({ error: 'Error al conectar con Visioner7', details: error.message });
+    res.status(500).json({ error: 'Error conectando con Visioner7', details: error.message });
   }
 }
