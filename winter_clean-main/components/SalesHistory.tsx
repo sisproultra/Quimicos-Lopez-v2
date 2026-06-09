@@ -503,6 +503,9 @@ export const SalesHistory: React.FC = () => {
         txtRuc: ticketConfig?.ruc || "",
         txtRUC: ticketConfig?.ruc || "",
         txtNRO_DOCUMENTO_EMISOR: ticketConfig?.ruc || "",
+        txtRAZON_SOCIAL_EMPRESA: ticketConfig?.shopName || "Químicos e Inversiones López",
+        txtNOMBRE_COMERCIAL_EMPRESA: ticketConfig?.shopName || "Químicos e Inversiones López",
+        txtDIRECCION_EMPRESA: ticketConfig?.address || "LIMA CENTRO",
         detalle: cpeItems
       };
       

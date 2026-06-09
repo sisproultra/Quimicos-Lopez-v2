@@ -263,6 +263,11 @@ export const sendCPEToVisioner7 = async (payload: any, apiToken?: string): Promi
     // Asegurar que txtTIPO_DOCUMENTO_EMPRESA esté presente (RUC = "6") para evitar el error 1008 de SUNAT
     payload.txtTIPO_DOCUMENTO_EMPRESA = "6";
 
+    // Asegurar que txtRAZON_SOCIAL_EMPRESA y otros campos requeridos de la empresa no estén vacíos para evitar error 1037 de SUNAT
+    payload.txtRAZON_SOCIAL_EMPRESA = payload.txtRAZON_SOCIAL_EMPRESA || "Químicos e Inversiones López";
+    payload.txtNOMBRE_COMERCIAL_EMPRESA = payload.txtNOMBRE_COMERCIAL_EMPRESA || payload.txtRAZON_SOCIAL_EMPRESA;
+    payload.txtDIRECCION_EMPRESA = payload.txtDIRECCION_EMPRESA || "LIMA CENTRO";
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
