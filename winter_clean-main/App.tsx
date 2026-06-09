@@ -34,6 +34,7 @@ import {
 
 import { INITIAL_TICKET_CONFIG, INITIAL_SERVICES, INITIAL_CUSTOMERS, INITIAL_EMPLOYEES, INITIAL_PAYMENT_METHODS, INITIAL_SALES, INITIAL_CATEGORIES, INITIAL_UNITS, INITIAL_SUPPLIERS } from './constants';
 import { api } from './services/api';
+import { supabase } from './services/supabaseClient';
 
 export const AppContext = React.createContext<AppContextType>({} as AppContextType);
 

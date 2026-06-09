@@ -113,7 +113,13 @@ async function startServer() {
       const token = await getVisionerToken(emailInput, passwordInput);
       const payload = req.body;
 
-      console.log(`[Proxy CPE] Enviando transacción CPE a Visioner7...`);
+      // Log parsed payload (hide sensitive passwords)
+      const safePayload = { ...payload };
+      if (safePayload.txtPASS_SOL_EMPRESA) safePayload.txtPASS_SOL_EMPRESA = "****";
+      if (safePayload.txtCONTRA) safePayload.txtCONTRA = "****";
+      if (safePayload.txtPAS_FIRMA) safePayload.txtPAS_FIRMA = "****";
+      console.log(`[Proxy CPE] Enviando transacción CPE a Visioner7 con payload:`, JSON.stringify(safePayload, null, 2));
+
       const response = await fetch("https://service1.visioner7-api.com/api/v1/sunat/generar-cpe", {
         method: "POST",
         headers: {
@@ -123,8 +129,16 @@ async function startServer() {
         body: JSON.stringify(payload)
       });
 
-      const data = await response.json();
-      console.log(`[Proxy CPE] Respuesta de Visioner7 recibida con estado ${response.status}`);
+      const rawText = await response.text();
+      console.log(`[Proxy CPE] Respuesta cruda de Visioner7 recibida con estado ${response.status}:`, rawText);
+
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch (parseErr) {
+        data = { error: "No JSON response", rawText };
+      }
+
       return res.status(response.status).json(data);
     } catch (error: any) {
       console.error("[Proxy CPE] Error al generar CPE:", error);
@@ -148,7 +162,13 @@ async function startServer() {
       const token = await getVisionerToken(emailInput, passwordInput);
       const payload = req.body;
 
-      console.log(`[Proxy Guia] Enviando guía de remisión a Visioner7...`);
+      // Log parsed payload (hide sensitive passwords)
+      const safePayload = { ...payload };
+      if (safePayload.PASS_SOL_EMPRESA) safePayload.PASS_SOL_EMPRESA = "****";
+      if (safePayload.PAS_FIRMA) safePayload.PAS_FIRMA = "****";
+      if (safePayload.CLAVE_TOKEN) safePayload.CLAVE_TOKEN = "****";
+      console.log(`[Proxy Guia] Enviando guía de remisión a Visioner7 con payload:`, JSON.stringify(safePayload, null, 2));
+
       const response = await fetch("https://service1.visioner7-api.com/api/v1/sunat/guia-remision", {
         method: "POST",
         headers: {
@@ -158,8 +178,16 @@ async function startServer() {
         body: JSON.stringify(payload)
       });
 
-      const data = await response.json();
-      console.log(`[Proxy Guia] Respuesta de Visioner7 recibida con estado ${response.status}`);
+      const rawText = await response.text();
+      console.log(`[Proxy Guia] Respuesta cruda de Visioner7 recibida con estado ${response.status}:`, rawText);
+
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch (parseErr) {
+        data = { error: "No JSON response", rawText };
+      }
+
       return res.status(response.status).json(data);
     } catch (error: any) {
       console.error("[Proxy Guia] Error al generar Guía de Remisión:", error);
