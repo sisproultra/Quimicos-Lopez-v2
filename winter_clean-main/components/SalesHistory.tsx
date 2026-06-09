@@ -286,6 +286,13 @@ export const SalesHistory: React.FC = () => {
   const [guiaChoferApellidos, setGuiaChoferApellidos] = useState('');
   const [guiaChoferLicencia, setGuiaChoferLicencia] = useState('');
 
+  // === ESTADOS NOTA DE CRÉDITO ===
+  const [creditNoteMotivo, setCreditNoteMotivo] = useState('01'); // 01 = Anulación de la operación
+  const [creditNoteReason, setCreditNoteReason] = useState('ANULACION DE LA OPERACION');
+  const [isSendingCreditNote, setIsSendingCreditNote] = useState(false);
+  const [creditNoteError, setCreditNoteError] = useState<string | null>(null);
+  const [creditNoteSuccess, setCreditNoteSuccess] = useState<string | null>(null);
+
   // Público Datos (Transportista)
   const [guiaTranspRuc, setGuiaTranspRuc] = useState('');
   const [guiaTranspRazonSocial, setGuiaTranspRazonSocial] = useState('');
@@ -534,6 +541,152 @@ export const SalesHistory: React.FC = () => {
       setCpeError(err.message || "Error desconocido al emitir el comprobante.");
     } finally {
       setIsSendingCpe(null);
+    }
+  };
+
+  const handleEmitirNotaCredito = async (sale: Sale) => {
+    if (!sale) return;
+    setIsSendingCreditNote(true);
+    setCreditNoteError(null);
+    setCreditNoteSuccess(null);
+
+    try {
+      const origNum = sale.sunatDocumentNumber || "";
+      const isFactura = origNum.toUpperCase().startsWith('F');
+      const ncSerie = isFactura ? "FC01" : "BC01";
+
+      const reservedNCNum = await reservarSiguienteCorrelativo('07', ncSerie);
+
+      // Determinar tipo de documento del cliente
+      const docNumber = sale.clientDocNumber || "00000000";
+      let clientDocType = "0"; // Sin documento
+      if (docNumber.length === 8) {
+        clientDocType = "1"; // DNI
+      } else if (docNumber.length === 11) {
+        clientDocType = "6"; // RUC
+      }
+
+      // Items mapping
+      const creditNoteItems = sale.items.map((item, idx) => {
+        const qty = item.quantity || 1;
+        const unitPrice = item.price || 0.0;
+        const totalWithTax = unitPrice * qty;
+        const valUnit = unitPrice / 1.18;
+        const impDet = valUnit * qty;
+        const igvDet = totalWithTax - impDet;
+        
+        return {
+          txtITEM: (idx + 1).toString(),
+          txtUNIDAD_MEDIDA_DET: "NIU",
+          txtCANTIDAD_DET: qty.toFixed(2),
+          txtPRECIO_DET: unitPrice.toFixed(2),
+          txtIMPORTE_DET: totalWithTax.toFixed(2),
+          txtIGV: igvDet.toFixed(2),
+          POR_IGV: "18.00",
+          txtVALOR_IGV_DET: "0.18",
+          txtVALOR_IMPORTE_DET: impDet.toFixed(2),
+          txtVALOR_PRECIO_DET: valUnit.toFixed(6),
+          txtVALOR_VENTA_DET: impDet.toFixed(2),
+          txtVALOR_UNITARIO_DET: valUnit.toFixed(6),
+          txtDSC_DET: "0.00",
+          txtCOD_TIPO_OPERACION: "10",
+          txtCODIGO_DET: item.serviceId || `SERV${idx+1}`,
+          txtDESCRIPCION_DET: item.serviceName || "SERVICIO DE LAVANDERIA",
+          txtPRECIO_SIN_IGV_DET: valUnit.toFixed(2),
+          txtPRECIO_TIPO_CODIGO: "01"
+        };
+      });
+
+      const totalNum = sale.total || 0;
+      const totalGravadas = totalNum / 1.18;
+      const totalIgv = totalNum - totalGravadas;
+
+      const payload = {
+        txtTIPO_OPERACION: "0101",
+        txtTOTAL_GRAVADAS: totalGravadas.toFixed(2),
+        txtTOTAL_INAFECTA: "0.00",
+        txtTOTAL_EXONERADAS: "0.00",
+        txtTOTAL_GRATUITAS: "0.00",
+        txtSUB_TOTAL: totalGravadas.toFixed(2),
+        txtTOTAL_DESCUENTO: "0.00",
+        txtPOR_IGV: "18.00",
+        txtTOTAL_IGV: totalIgv.toFixed(2),
+        txtTOTAL: totalNum.toFixed(2),
+        txtTOTAL_LETRAS: numToLetters(totalNum, sale.currency === 'USD' ? 'USD' : 'PEN'),
+        txtNRO_COMPROBANTE: reservedNCNum,
+        txtFECHA_DOCUMENTO: new Date().toISOString().split('T')[0],
+        txtCOD_TIPO_DOCUMENTO: "07", // NOTA DE CRÉDITO
+        txtCOD_MONEDA: sale.currency === 'USD' ? "USD" : "PEN",
+        txtTIPO_TIPO_CAMBIO: "02",
+        txtCOMPRA_TIPO_CAMBIO: sale.currency === 'USD' ? (sale.exchangeRate || 3.75).toFixed(2) : "1.00",
+        txtVENTA_TIPO_CAMBIO: sale.currency === 'USD' ? (sale.exchangeRate || 3.75).toFixed(2) : "1.05",
+        txtNRO_DOCUMENTO_CLIENTE: docNumber,
+        txtRAZON_SOCIAL_CLIENTE: sale.customerName || "CLIENTE GENERICO",
+        txtTIPO_DOCUMENTO_CLIENTE: clientDocType,
+        txtDIRECCION_CLIENTE: "LIMA LIMA",
+        txtFORMA_PAGO: "Contado",
+        
+        // Referencia del documento modificado
+        txtCOMPROBANTE_MODIFICADO_TIPO: isFactura ? "01" : "03",
+        txtCOMPROBANTE_MODIFICADO_NUMERO: origNum,
+        txtCOMPROBANTE_MODIFICADO_MOTIVO_CODIGO: creditNoteMotivo,
+        txtCOMPROBANTE_MODIFICADO_MOTIVO_DESCRIPCION: creditNoteReason,
+
+        // Sol credentials
+        txtUSUARIO_SOL_EMPRESA: ticketConfig?.solUser || "MODDATOS",
+        txtPASS_SOL_EMPRESA: ticketConfig?.solPassword || "moddatos",
+        txtCONTRA: ticketConfig?.signaturePassword || "123456",
+        txtPAS_FIRMA: ticketConfig?.signaturePassword || "123456",
+        txtTIPO_PROCESO: ticketConfig?.productionMode ? "1" : "3",
+        
+        // Empresa / RUC
+        txtNRO_DOCUMENTO_EMPRESA: ticketConfig?.ruc || "",
+        txtRUC_EMPRESA: ticketConfig?.ruc || "",
+        txtEMPRESA_RUC: ticketConfig?.ruc || "",
+        txtRuc: ticketConfig?.ruc || "",
+        txtRUC: ticketConfig?.ruc || "",
+        txtNRO_DOCUMENTO_EMISOR: ticketConfig?.ruc || "",
+        txtRAZON_SOCIAL_EMPRESA: ticketConfig?.shopName || "Químicos e Inversiones López",
+        txtNOMBRE_COMERCIAL_EMPRESA: ticketConfig?.shopName || "Químicos e Inversiones López",
+        txtDIRECCION_EMPRESA: ticketConfig?.address || "LIMA CENTRO",
+        
+        detalle: creditNoteItems
+      };
+
+      const res = await sendCPEToVisioner7(payload, apiToken);
+
+      if (res && (res.respuesta === 'OK' || res.success || res.url_pdf || res.pdf || res.cod_sunat === "0" || res.cod_sunat === 0 || res.archivo || res.cdr_data)) {
+        const doc_pdf_original = res.url_pdf || res.pdf || "https://example.com/mock-pdf.pdf";
+        const finalPdfUrl = doc_pdf_original.replace('http://', 'https://');
+        
+        const updatedSale: Sale = {
+          ...sale,
+          sunatStatus: 'ANULADO', // El comprobante original se marca como ANULADO mediante la NC
+          creditNoteDocumentNumber: reservedNCNum,
+          creditNotePdfUrl: finalPdfUrl,
+          creditNoteXmlUrl: res.url_xml || res.xml || "",
+          creditNoteCdrUrl: res.url_cdr || res.cdr || "",
+          creditNoteStatus: 'ACEPTADO_SUNAT',
+          creditNoteResponseDescription: res.msj_sunat || res.descripcion_respuesta || "Nota de Crédito aceptada por SUNAT"
+        };
+
+        updateSale(updatedSale);
+        setSelectedSale(updatedSale);
+        setCreditNoteSuccess(`Nota de Crédito ${reservedNCNum} emitida con éxito.`);
+        
+        try {
+          window.open(finalPdfUrl, '_blank', 'noopener,noreferrer');
+        } catch (e) {
+          console.warn("Pop-up blocker blocked auto-open of Credit Note PDF", e);
+        }
+      } else {
+        throw new Error(res?.descripcion_respuesta || res?.message || "Error al procesar la Nota de Crédito en SUNAT.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setCreditNoteError(err.message || "Error al emitir la Nota de Crédito.");
+    } finally {
+      setIsSendingCreditNote(false);
     }
   };
 
@@ -1325,13 +1478,14 @@ export const SalesHistory: React.FC = () => {
                 )}
                 <th className="p-4 font-semibold bg-slate-50 text-right">TOTALVENTA</th>
                 <th className="p-4 font-semibold bg-slate-50 text-center">CONDICION DE PAGO</th>
+                <th className="p-4 font-semibold bg-slate-50 text-center">ESTADO SUNAT</th>
                 <th className="p-4 font-semibold text-right bg-slate-50">BOTONES DE ACCION</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredSales.length === 0 ? (
                 <tr>
-                  <td colSpan={searchInsumo ? 9 : 7} className="p-8 text-center text-slate-400">
+                  <td colSpan={searchInsumo ? 10 : 8} className="p-8 text-center text-slate-400">
                     No se encontraron registros de ventas con los filtros actuales
                   </td>
                 </tr>
@@ -1432,6 +1586,28 @@ export const SalesHistory: React.FC = () => {
                         <span className="inline-flex items-center px-2.5 py-1 text-[11px] font-black rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 uppercase tracking-wide">
                           Contado
                         </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      {sale.documentType && sale.documentType !== 'NOTA_PEDIDO' ? (
+                        sale.sunatStatus === 'ACEPTADO_SUNAT' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black rounded-lg bg-green-50 text-green-700 border border-green-200 uppercase tracking-wide">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                            Aceptado
+                          </span>
+                        ) : sale.sunatStatus === 'ANULADO' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black rounded-lg bg-red-50 text-red-700 border border-red-200 uppercase tracking-wide">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            Anulado
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black rounded-lg bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                            PENDIENTE
+                          </span>
+                        )
+                      ) : (
+                        <span className="text-xs text-slate-400 italic font-semibold">—</span>
                       )}
                     </td>
                     <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
@@ -1839,6 +2015,141 @@ export const SalesHistory: React.FC = () => {
                                     }
                                 })()}
                             </div>
+
+                            {/* SECCIÓN 3: NOTA DE CRÉDITO ELECTRÓNICA */}
+                            {selectedSale.sunatStatus === 'ACEPTADO_SUNAT' && (
+                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                                    <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                                        <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm">
+                                            <FileText size={16} className="text-purple-500" />
+                                            Nota de Crédito Electrónica (SUNAT NC - 07)
+                                        </h4>
+                                    </div>
+
+                                    {creditNoteError && (
+                                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs flex justify-between items-center alert-animation">
+                                            <span><strong>Error:</strong> {creditNoteError}</span>
+                                            <button onClick={() => setCreditNoteError(null)} className="text-red-500 font-bold hover:text-red-700 ml-2">×</button>
+                                        </div>
+                                    )}
+
+                                    {creditNoteSuccess && (
+                                        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 text-xs flex justify-between items-center alert-animation">
+                                            <span>{creditNoteSuccess}</span>
+                                            <button onClick={() => setCreditNoteSuccess(null)} className="text-emerald-500 font-bold hover:text-emerald-700 ml-2">×</button>
+                                        </div>
+                                    )}
+
+                                    {selectedSale.creditNoteDocumentNumber ? (
+                                        <div className="space-y-3">
+                                            <div className="bg-purple-50 border border-purple-100 rounded-lg p-3 flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold shrink-0">✓</div>
+                                                <div>
+                                                    <p className="font-bold text-purple-800 text-xs uppercase tracking-wide">Nota de Crédito Emitida</p>
+                                                    <p className="font-mono font-bold text-slate-800 text-sm mt-0.5">{selectedSale.creditNoteDocumentNumber}</p>
+                                                    <p className="text-[11px] text-slate-500 mt-0.5">{selectedSale.creditNoteResponseDescription || "Aceptada por SUNAT"}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-3 gap-2 pt-1">
+                                                {selectedSale.creditNotePdfUrl && (
+                                                    <a 
+                                                        href={selectedSale.creditNotePdfUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex flex-col items-center justify-center p-2 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors text-center"
+                                                    >
+                                                        <Printer size={16} className="text-red-500 mb-1" />
+                                                        <span className="text-[10px] font-bold text-slate-700">Imprimir PDF NC</span>
+                                                    </a>
+                                                )}
+                                                {selectedSale.creditNoteXmlUrl && (
+                                                    <a 
+                                                        href={selectedSale.creditNoteXmlUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex flex-col items-center justify-center p-2 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors text-center"
+                                                    >
+                                                        <FileText size={16} className="text-blue-500 mb-1" />
+                                                        <span className="text-[10px] font-bold text-slate-700">XML (Nota)</span>
+                                                    </a>
+                                                )}
+                                                {selectedSale.creditNoteCdrUrl && (
+                                                    <a 
+                                                        href={selectedSale.creditNoteCdrUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex flex-col items-center justify-center p-2 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors text-center"
+                                                    >
+                                                        <CheckCircle size={16} className="text-emerald-500 mb-1" />
+                                                        <span className="text-[10px] font-bold text-slate-700">CDR (Respuesta)</span>
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3.5">
+                                            <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-lg text-indigo-700 text-xs leading-relaxed">
+                                                Puede emitir una <strong>Nota de Crédito</strong> ante SUNAT para anular o corregir este comprobante aceptado. Al emitirse, se enviará la anulación tributaria a SUNAT de manera inmediata.
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Motivo de Nota de Crédito (Catálogo 09)</label>
+                                                    <select
+                                                        value={creditNoteMotivo}
+                                                        onChange={(e) => {
+                                                            setCreditNoteMotivo(e.target.value);
+                                                            const opt = e.target.options[e.target.selectedIndex];
+                                                            setCreditNoteReason(opt.text.substring(5).toUpperCase());
+                                                        }}
+                                                        className="w-full p-2 border border-slate-200 rounded-lg text-xs bg-white focus:ring-1 focus:ring-blue-500 outline-none"
+                                                    >
+                                                        <option value="01">01 - Anulación de la operación</option>
+                                                        <option value="02">02 - Anulación por error en el RUC/DNI</option>
+                                                        <option value="03">03 - Corrección por error en la descripción</option>
+                                                        <option value="04">04 - Descuento global</option>
+                                                        <option value="05">05 - Descuento por ítem</option>
+                                                        <option value="06">06 - Devolución total</option>
+                                                        <option value="07">07 - Devolución por ítem</option>
+                                                        <option value="08">08 - Bonificación</option>
+                                                        <option value="09">09 - Disminución en el valor</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-600 mb-1">Descripción / Sustento del Motivo</label>
+                                                    <input 
+                                                        type="text"
+                                                        value={creditNoteReason}
+                                                        onChange={(e) => setCreditNoteReason(e.target.value.toUpperCase())}
+                                                        placeholder="EJ. ERROR EN DIGITACIÓN, CANCELACIÓN DE SERVICIO"
+                                                        className="w-full p-2 border border-slate-200 rounded-lg text-xs outline-none focus:ring-1 focus:ring-blue-500 uppercase font-mono"
+                                                    />
+                                                </div>
+
+                                                <button
+                                                    onClick={() => handleEmitirNotaCredito(selectedSale)}
+                                                    disabled={isSendingCreditNote}
+                                                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white font-bold rounded-xl active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm text-xs cursor-pointer text-center"
+                                                >
+                                                    {isSendingCreditNote ? (
+                                                        <>
+                                                            <Loader2 size={16} className="animate-spin" />
+                                                            Emitiendo Nota de Crédito en SUNAT...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <FileText size={16} />
+                                                            Generar Nota de Crédito de Anulación
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 

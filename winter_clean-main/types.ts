@@ -271,7 +271,7 @@ export interface Sale {
   deleted?: boolean; 
 
   // Integracion Sunat CPE
-  sunatStatus?: 'BORRADOR' | 'PENDIENTE_ENVIO' | 'ENVIADO_API' | 'RECHAZADO_SUNAT' | 'ACEPTADO_SUNAT' | 'ERROR';
+  sunatStatus?: 'BORRADOR' | 'PENDIENTE_ENVIO' | 'ENVIADO_API' | 'RECHAZADO_SUNAT' | 'ACEPTADO_SUNAT' | 'ERROR' | 'ANULADO';
   sunatPdfUrl?: string;
   sunatXmlUrl?: string;
   sunatCdrUrl?: string;
@@ -280,6 +280,14 @@ export interface Sale {
   sunatDocumentNumber?: string;
   creditDays?: number;
   dueDate?: string;
+  
+  // Nota de Credito
+  creditNoteDocumentNumber?: string;
+  creditNotePdfUrl?: string;
+  creditNoteXmlUrl?: string;
+  creditNoteCdrUrl?: string;
+  creditNoteStatus?: 'ACEPTADO_SUNAT' | 'ERROR';
+  creditNoteResponseDescription?: string;
 }
 
 export interface GuiaRemisionItem {
