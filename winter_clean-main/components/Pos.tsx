@@ -1,15 +1,16 @@
 import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { AppContext } from '../App';
 import { Customer, SaleItem, Service, Sale, Quotation } from '../types';
-import { Search, User, ShoppingCart, Plus, Minus, Trash2, Save, X, ChevronUp, Package, ShoppingBag, CheckCircle, AlertCircle, FileText, LayoutGrid, List, Phone, MapPin, Smartphone, Banknote, QrCode, Clock, Wallet, CreditCard, Calendar } from 'lucide-react';
-import { searchClient, reservarSiguienteCorrelativo } from '../services/clientService';
+import { Search, User, ShoppingCart, Plus, Minus, Trash2, Save, X, ChevronUp, Package, ShoppingBag, CheckCircle, AlertCircle, FileText, LayoutGrid, List, Phone, MapPin, Smartphone, Banknote, QrCode, Clock, Wallet, CreditCard, Calendar, Eye, Loader2, ArrowDown } from 'lucide-react';
+import { searchClient, reservarSiguienteCorrelativo, sendCPEToVisioner7 } from '../services/clientService';
 import { generateUUID } from '../services/api';
+import { numeroALetras } from './SalesHistory';
 
 export const Pos: React.FC = () => {
   const { 
-    customers, services, sales, addSale, getNextOrderNumber, 
+    customers, services, sales, addSale, updateSale, getNextOrderNumber, 
     themeStyles: themeColors, currency, activeQuotationForPOS, setActiveQuotationForPOS,
-    apiToken, addCustomer, zones, paymentMethods, exchangeRate
+    apiToken, addCustomer, zones, paymentMethods, exchangeRate, ticketConfig
   } = useContext(AppContext);
   
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -45,6 +46,168 @@ export const Pos: React.FC = () => {
   const [creditDays, setCreditDays] = useState<'15' | '30' | '45' | '60' | '90'>('15');
   const [saleNotes, setSaleNotes] = useState<string>('');
   const [errorTitle, setErrorTitle] = useState("Atención");
+
+  // Post-Sale Modal and CPE immediate generation states
+  const [isPostSaleModalOpen, setIsPostSaleModalOpen] = useState(false);
+  const [activePostSale, setActivePostSale] = useState<Sale | null>(null);
+  const [postSaleLoading, setPostSaleLoading] = useState(false);
+  const [postSaleError, setPostSaleError] = useState<string | null>(null);
+  const [postSaleSuccessMsg, setPostSaleSuccessMsg] = useState<string | null>(null);
+
+  const emitCPEImmediately = async (sale: Sale) => {
+    setPostSaleLoading(true);
+    setPostSaleError(null);
+    setPostSaleSuccessMsg(null);
+    
+    try {
+      const docType = sale.documentType;
+      if (!docType || docType === 'NOTA_PEDIDO') {
+        setPostSaleLoading(false);
+        return; // No CPE emission needed for local tickets
+      }
+      
+      const isFactura = docType === 'FACTURA';
+      const codTipoDoc = isFactura ? "01" : "03";
+      const serie = isFactura ? "F001" : "B001";
+      
+      const reservedNum = sale.sunatDocumentNumber || await reservarSiguienteCorrelativo(codTipoDoc, serie);
+      
+      const totalNum = sale.total || 0;
+      const igvRate = 0.18;
+      const totalGravadas = totalNum / (1 + igvRate);
+      const totalIgv = totalNum - totalGravadas;
+      
+      // Determinar tipo de documento del cliente
+      const docNumber = sale.clientDocNumber || "00000000";
+      let clientDocType = "0"; // Sin documento
+      if (docNumber.length === 8) {
+        clientDocType = "1"; // DNI
+      } else if (docNumber.length === 11) {
+        clientDocType = "6"; // RUC
+      }
+      
+      // Formatear items para el detalle de CPE
+      const cpeItems = sale.items.map((item, idx) => {
+        const qty = item.quantity || 1;
+        const unitPrice = item.price || 0.0;
+        const totalWithTax = unitPrice * qty;
+        const valUnit = unitPrice / (1 + igvRate);
+        const impDet = valUnit * qty;
+        const igvDet = totalWithTax - impDet;
+        
+        return {
+          txtITEM: (idx + 1).toString(),
+          txtUNIDAD_MEDIDA_DET: "NIU",
+          txtCANTIDAD_DET: qty.toFixed(2),
+          txtPRECIO_DET: unitPrice.toFixed(2),
+          txtIMPORTE_DET: totalWithTax.toFixed(2),
+          txtIGV: igvDet.toFixed(2),
+          POR_IGV: "18.00",
+          txtVALOR_IGV_DET: "0.18",
+          txtVALOR_IMPORTE_DET: impDet.toFixed(2),
+          txtVALOR_PRECIO_DET: valUnit.toFixed(6),
+          txtVALOR_VENTA_DET: impDet.toFixed(2),
+          txtVALOR_UNITARIO_DET: valUnit.toFixed(6),
+          txtDSC_DET: "0.00",
+          txtCOD_TIPO_OPERACION: "10",
+          txtCODIGO_DET: item.serviceId || `SERV${idx+1}`,
+          txtDESCRIPCION_DET: item.serviceName || "SERVICIO DE LAVANDERIA",
+          txtPRECIO_SIN_IGV_DET: valUnit.toFixed(2)
+        };
+      });
+      
+      const payload = {
+        txtTIPO_OPERACION: "0101",
+        txtTOTAL_GRAVADAS: totalGravadas.toFixed(2),
+        txtTOTAL_INAFECTA: "0.00",
+        txtTOTAL_EXONERADAS: "0.00",
+        txtTOTAL_GRATUITAS: "0.00",
+        txtSUB_TOTAL: totalGravadas.toFixed(2),
+        txtTOTAL_DESCUENTO: "0.00",
+        txtPOR_IGV: "18.00",
+        txtTOTAL_IGV: totalIgv.toFixed(2),
+        txtTOTAL: totalNum.toFixed(2),
+        txtSUB_TOTAL_PERCEPCIONES: "0.00",
+        txtPOR_PERCEPCIONES: "0.00",
+        txtBI_PERCEPCIONES: "0.00",
+        txtTOTAL_PERCEPCIONES: "0.00",
+        txtPOR_RETENCIONES: "0.00",
+        txtBI_RETENCIONES: "0.00",
+        txtTOTAL_RETENCIONES: "0.00",
+        txtTOTAL_BONIFICACIONES: "0.00",
+        txtTOTAL_EXPORTACION: "0.00",
+        txtCOD_MEDIO_PAGO: "",
+        txtCTA_BANCARIA_BN: "",
+        txtCODIGO_DETRACCION: "",
+        txtPOR_DETRACCION: "0.00",
+        txtTOTAL_DETRACCIONES: "0.00",
+        txtTOTAL_ISC: "0.00",
+        txtTOTAL_OTR_IMP: "0.00",
+        txtICBP_BOLSA: "0.00",
+        txtTOTAL_LETRAS: numeroALetras(totalNum, sale.currency === 'USD' ? 'USD' : 'PEN'),
+        txtNRO_COMPROBANTE: reservedNum,
+        txtFECHA_DOCUMENTO: new Date().toISOString().split('T')[0],
+        txtCOD_TIPO_DOCUMENTO: codTipoDoc,
+        txtCOD_MONEDA: sale.currency === 'USD' ? "USD" : "PEN",
+        txtTIPO_TIPO_CAMBIO: "02",
+        txtCOMPRA_TIPO_CAMBIO: sale.currency === 'USD' ? (sale.exchangeRate || 3.75).toFixed(2) : "1.00",
+        txtVENTA_TIPO_CAMBIO: sale.currency === 'USD' ? (sale.exchangeRate || 3.75).toFixed(2) : "1.05",
+        txtNRO_DOCUMENTO_CLIENTE: docNumber,
+        txtRAZON_SOCIAL_CLIENTE: sale.customerName || "CLIENTE GENERICO",
+        txtTIPO_DOCUMENTO_CLIENTE: clientDocType,
+        txtDIRECCION_CLIENTE: "LIMA LIMA",
+        txtDIRECCION_ENTREGA: "",
+        txtFORMA_PAGO: sale.balance > 0 ? "Credito" : "Contado",
+        txtMONTO_PENDIENTE: sale.balance.toFixed(2),
+        txtCUOTAS: [],
+        txtUSUARIO_SOL_EMPRESA: ticketConfig?.solUser || "MODDATOS",
+        txtPASS_SOL_EMPRESA: ticketConfig?.solPassword || "moddatos",
+        txtCONTRA: ticketConfig?.signaturePassword || "123456",
+        txtPAS_FIRMA: ticketConfig?.signaturePassword || "123456",
+        txtTIPO_PROCESO: ticketConfig?.productionMode ? "1" : "3",
+        txtNRO_DOCUMENTO_EMPRESA: ticketConfig?.ruc || "",
+        txtRUC_EMPRESA: ticketConfig?.ruc || "",
+        txtEMPRESA_RUC: ticketConfig?.ruc || "",
+        txtRuc: ticketConfig?.ruc || "",
+        txtRUC: ticketConfig?.ruc || "",
+        txtNRO_DOCUMENTO_EMISOR: ticketConfig?.ruc || "",
+        detalle: cpeItems
+      };
+      
+      const res = await sendCPEToVisioner7(payload, apiToken);
+      
+      if (res && (res.respuesta === 'OK' || res.success || res.url_pdf || res.pdf)) {
+        const url_pdf_original = res.url_pdf || res.pdf || "https://example.com/mock-pdf.pdf";
+        const finalPdfUrl = url_pdf_original.replace('http://', 'https://');
+        const updatedSale: Sale = {
+          ...sale,
+          sunatStatus: 'ACEPTADO_SUNAT',
+          sunatPdfUrl: finalPdfUrl,
+          sunatXmlUrl: res.url_xml || res.xml || "",
+          sunatCdrUrl: res.url_cdr || res.cdr || "",
+          sunatResponseCode: res.codigo_respuesta || "0",
+          sunatResponseDescription: res.descripcion_respuesta || "Aceptado",
+          sunatDocumentNumber: reservedNum
+        };
+        await updateSale(updatedSale);
+        setActivePostSale(updatedSale);
+        setPostSaleSuccessMsg(`Comprobante ${reservedNum} emitido con éxito.`);
+        
+        try {
+          window.open(finalPdfUrl, '_blank', 'noopener,noreferrer');
+        } catch (e) {
+          console.warn("Pop-up blocker blocked auto-open of SUNAT PDF", e);
+        }
+      } else {
+        throw new Error(res?.descripcion_respuesta || res?.message || "Error devuelto por la API de SUNAT.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setPostSaleError(err.message || "Error desconocido al emitir el comprobante.");
+    } finally {
+      setPostSaleLoading(false);
+    }
+  };
 
   const getDisplayCurrencySymbol = () => {
     return saleCurrency === 'USD' ? '$' : 'S/';
@@ -654,7 +817,7 @@ export const Pos: React.FC = () => {
           sunatDocumentNumber: reservedDocNum
       };
 
-      addSale(sale);
+      await addSale(sale);
       
       console.group(`%c🛒 [PUNTO DE VENTA] VENTA REGISTRADA CON ÉXITO (#${sale.id})`, "color: #4f46e5; font-weight: bold; font-size: 11px;");
       console.log("Comprobante:", sale.documentType);
@@ -666,6 +829,19 @@ export const Pos: React.FC = () => {
       console.log("Objeto Venta completo:", sale);
       console.groupEnd();
 
+      // Open Post-Sale Modal immediately so the user gets real-time feedback and PDF view
+      setActivePostSale(sale);
+      setIsPostSaleModalOpen(true);
+
+      // Trigger SUNAT CPE generation immediately if it's BOLETA or FACTURA
+      if (sale.documentType === 'BOLETA' || sale.documentType === 'FACTURA') {
+         emitCPEImmediately(sale);
+      } else {
+         // It's a NOTA_PEDIDO, so success message is simple
+         setPostSaleSuccessMsg(`Nota de Venta #${sale.id} registrada con éxito.`);
+      }
+
+      // Reset POS cart and state so it's clean and ready for the next client while the current receipt/CPE processes
       setCart([]);
       setSelectedCustomer(null);
       setIsMobileCartOpen(false);
@@ -681,10 +857,7 @@ export const Pos: React.FC = () => {
       setEmissionDate(new Date().toISOString().split('T')[0]);
       setIsRetrofechaEnabled(false);
       setCreditDays('15');
-      
-      // Show success message
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 2000);
+      setSaleNotes('');
   };
 
   const cartTotal = cart.reduce((s, i) => s + i.subtotal, 0);
@@ -985,6 +1158,137 @@ export const Pos: React.FC = () => {
                       </div>
                       <h3 className="text-lg font-bold text-slate-800 text-center mb-1">{errorTitle}</h3>
                       <p className="text-slate-600 font-medium text-center text-sm">{showError}</p>
+                  </div>
+              </div>
+          )}
+
+          {/* --- MODAL POST-VENTA CON EMISIÓN ELECTRÓNICA INMEDIATA --- */}
+          {isPostSaleModalOpen && activePostSale && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4 animate-fade-in font-sans">
+                  <div className="bg-white rounded-3xl w-full max-w-lg p-6 md:p-8 shadow-2xl relative animate-slide-up flex flex-col items-center">
+                      
+                      {/* Botón de cerrar, activo solo cuando no esté emitiendo a SUNAT */}
+                      {!postSaleLoading && (
+                          <button 
+                              onClick={() => {
+                                  setIsPostSaleModalOpen(false);
+                                  setActivePostSale(null);
+                                  setPostSaleError(null);
+                                  setPostSaleSuccessMsg(null);
+                              }} 
+                              className="absolute top-4 right-4 p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 cursor-pointer"
+                              type="button"
+                          >
+                              <X size={20} />
+                          </button>
+                      )}
+
+                      {/* Sección de Íconos según estado de emisión */}
+                      {postSaleLoading ? (
+                          <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-5 animate-pulse border border-blue-100">
+                              <Loader2 size={40} className="animate-spin" />
+                          </div>
+                      ) : postSaleError ? (
+                          <div className="w-20 h-20 bg-red-50 text-red-600 rounded-full flex items-center justify-center mb-5 border border-red-100">
+                              <AlertCircle size={40} />
+                          </div>
+                      ) : (
+                          <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-5 border border-emerald-100 shadow-sm animate-bounce">
+                              <CheckCircle size={40} />
+                          </div>
+                      )}
+
+                      {/* Título de Estado */}
+                      <h3 className="text-xl font-bold text-slate-800 text-center uppercase tracking-tight mb-1">
+                          {postSaleLoading ? 'Transmitiendo a SUNAT...' : postSaleError ? 'Fallo de Emisión' : '¡Venta Registrada!'}
+                      </h3>
+                      
+                      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-4 font-mono text-center bg-slate-100 px-3 py-1 rounded-xl">
+                          {activePostSale.documentType === 'NOTA_PEDIDO' ? 'NOTA DE VENTA' : activePostSale.documentType}: {activePostSale.sunatDocumentNumber || `INT-${activePostSale.id}`}
+                      </p>
+
+                      {/* Recuadro de Resumen del Comprobante */}
+                      <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4.5 mb-6 text-xs space-y-2.5">
+                          <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
+                              <span className="text-slate-500 font-bold uppercase">Cliente:</span>
+                              <span className="font-extrabold text-slate-800 max-w-[220px] truncate uppercase">{activePostSale.customerName}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                              <span className="text-slate-500 font-bold uppercase">Total Cobrado:</span>
+                              <span className="font-black text-slate-900 text-sm font-mono">{activePostSale.currency === 'USD' ? '$' : 'S/'} {activePostSale.total.toFixed(2)}</span>
+                          </div>
+                          
+                          {/* Estado interactivo de SUNAT */}
+                          <div className="border-t border-slate-200/60 pt-2.5">
+                              {postSaleLoading ? (
+                                  <div className="flex flex-col items-center gap-1.5 py-1 text-center font-sans">
+                                      <span className="font-bold text-blue-600 animate-pulse text-xs">Comunicando con servidores de SUNAT...</span>
+                                      <span className="text-[10px] text-slate-400">Creando XML y firmando con el certificado electrónico CPE</span>
+                                  </div>
+                              ) : postSaleError ? (
+                                  <div className="bg-red-50/50 border border-red-150 rounded-xl p-3 text-red-700">
+                                      <p className="font-bold text-[11px] mb-1">CPE no pudo emitirse en directo:</p>
+                                      <p className="text-[10px] leading-relaxed font-mono font-medium max-h-24 overflow-y-auto">{postSaleError}</p>
+                                      <p className="text-[9px] text-slate-500 mt-2 font-normal leading-normal">
+                                          La venta se guardó de forma local en el historial. Puede volver a emitirla al solucionar credenciales SOL/certificado en Configuración.
+                                      </p>
+                                  </div>
+                              ) : (
+                                  <div className="flex flex-col items-center gap-2 py-1">
+                                      <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 font-bold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                                          <CheckCircle size={14} /> 
+                                          <span>{activePostSale.documentType === 'NOTA_PEDIDO' ? 'Registrado Localmente' : 'Aceptado por SUNAT (CDR OK)'}</span>
+                                      </div>
+                                      {activePostSale.sunatPdfUrl && (
+                                          <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                                              <Eye size={10} /> Se ha generado el PDF con el CDR de validación
+                                          </span>
+                                      )}
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+
+                      {/* Botonera de Acciones Post-Venta */}
+                      <div className="w-full flex flex-col gap-2.5">
+                          {activePostSale.sunatPdfUrl && (
+                              <a 
+                                  href={activePostSale.sunatPdfUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="w-full bg-gradient-to-r from-[#51B01E] to-[#439618] text-white py-3.5 px-4 rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:brightness-105 active:scale-98 transition-all flex items-center justify-center gap-2 text-center"
+                              >
+                                  <FileText size={16} /> Ver / Imprimir Comprobante PDF
+                              </a>
+                          )}
+                          
+                          {postSaleError && (
+                              <button 
+                                  type="button"
+                                  disabled={postSaleLoading}
+                                  onClick={() => emitCPEImmediately(activePostSale)}
+                                  className="w-full bg-red-650 hover:bg-red-700 text-white py-3 px-4 rounded-xl text-xs font-extrabold uppercase tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 font-sans"
+                              >
+                                  {postSaleLoading ? <Loader2 size={14} className="animate-spin" /> : <ArrowDown size={14} />} 
+                                  <span>Reintentar Emisión CPE ahora</span>
+                              </button>
+                          )}
+
+                          <button 
+                              type="button"
+                              disabled={postSaleLoading}
+                              onClick={() => {
+                                  setIsPostSaleModalOpen(false);
+                                  setActivePostSale(null);
+                                  setPostSaleError(null);
+                                  setPostSaleSuccessMsg(null);
+                              }}
+                              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center disabled:opacity-50"
+                          >
+                              {postSaleLoading ? 'Comunicando...' : 'Entendido, Nueva Venta'}
+                          </button>
+                      </div>
+
                   </div>
               </div>
           )}

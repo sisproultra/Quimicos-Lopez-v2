@@ -303,6 +303,7 @@ export async function saveGuiaToSupabase(input: GuiaRemisionInput, response: Gui
 
   const payload: Record<string, any> = {
     company_id: tenantId,
+    tenant_id: tenantId, // Añadido por compatibilidad
     nro_comprobante: input.nroComprobante,
     nro_comprobante_ref: input.nroComprobanteRef || null,
     modalidad: input.modalidad,
