@@ -263,10 +263,28 @@ export const sendCPEToVisioner7 = async (payload: any, apiToken?: string): Promi
     // Asegurar que txtTIPO_DOCUMENTO_EMPRESA esté presente (RUC = "6") para evitar el error 1008 de SUNAT
     payload.txtTIPO_DOCUMENTO_EMPRESA = "6";
 
+    // Asegurar que exista un RUC de emisor válido en el payload para evitar errores por campo vacío
+    const defaultRuc = "20604051984";
+    const cleanRuc = payload.txtNRO_DOCUMENTO_EMPRESA || payload.txtRUC_EMPRESA || payload.txtEMPRESA_RUC || payload.txtRuc || payload.txtRUC || payload.txtNRO_DOCUMENTO_EMISOR || defaultRuc;
+    payload.txtNRO_DOCUMENTO_EMPRESA = cleanRuc;
+    payload.txtRUC_EMPRESA = cleanRuc;
+    payload.txtEMPRESA_RUC = cleanRuc;
+    payload.txtRuc = cleanRuc;
+    payload.txtRUC = cleanRuc;
+    payload.txtNRO_DOCUMENTO_EMISOR = cleanRuc;
+
     // Asegurar que txtRAZON_SOCIAL_EMPRESA y otros campos requeridos de la empresa no estén vacíos para evitar error 1037 de SUNAT
     payload.txtRAZON_SOCIAL_EMPRESA = payload.txtRAZON_SOCIAL_EMPRESA || "Químicos e Inversiones López";
     payload.txtNOMBRE_COMERCIAL_EMPRESA = payload.txtNOMBRE_COMERCIAL_EMPRESA || payload.txtRAZON_SOCIAL_EMPRESA;
     payload.txtDIRECCION_EMPRESA = payload.txtDIRECCION_EMPRESA || "LIMA CENTRO";
+
+    // Asegurar que cada item en detalle incluya txtPRECIO_TIPO_CODIGO como "01" por defecto para evitar el error 2410 de SUNAT
+    if (payload.detalle && Array.isArray(payload.detalle)) {
+      payload.detalle = payload.detalle.map((item: any) => ({
+        ...item,
+        txtPRECIO_TIPO_CODIGO: item.txtPRECIO_TIPO_CODIGO || "01"
+      }));
+    }
 
     const response = await fetch(url, {
       method: 'POST',

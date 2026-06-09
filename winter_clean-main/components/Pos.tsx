@@ -112,7 +112,8 @@ export const Pos: React.FC = () => {
           txtCOD_TIPO_OPERACION: "10",
           txtCODIGO_DET: item.serviceId || `SERV${idx+1}`,
           txtDESCRIPCION_DET: item.serviceName || "SERVICIO DE LAVANDERIA",
-          txtPRECIO_SIN_IGV_DET: valUnit.toFixed(2)
+          txtPRECIO_SIN_IGV_DET: valUnit.toFixed(2),
+          txtPRECIO_TIPO_CODIGO: "01"
         };
       });
       
