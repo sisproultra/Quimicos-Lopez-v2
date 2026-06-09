@@ -1,0 +1,10 @@
+{
+  "name": "Quimicos e Inversiones Lopez v2",
+  "description": "Rediseño total",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}

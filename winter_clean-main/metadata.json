@@ -1,0 +1,8 @@
+{
+  "name": "Winter Cleanv12",
+  "description": "conectando con SUPAVASE / VERCEL\n",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
