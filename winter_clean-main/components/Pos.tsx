@@ -556,8 +556,13 @@ export const Pos: React.FC = () => {
       const totalSoles = cart.reduce((sum, i) => sum + i.subtotal, 0);
       const totalInSelectedCurrency = getDisplayPrice(totalSoles);
       
-      // Custom timestamp matching specified retrofecha day
-      const saleDate = emissionDate ? new Date(emissionDate + 'T12:00:00Z').toISOString() : new Date().toISOString();
+      // Custom timestamp matching specified retrofecha day if enabled; otherwise, real time now
+      let saleDate = new Date().toISOString();
+      if (isRetrofechaEnabled && emissionDate) {
+         const now = new Date();
+         const timeString = now.toTimeString().split(' ')[0]; // "HH:MM:SS"
+         saleDate = new Date(`${emissionDate}T${timeString}`).toISOString();
+      }
       const igv = totalInSelectedCurrency - (totalInSelectedCurrency / 1.18);
 
       // Construct payment details
@@ -591,7 +596,7 @@ export const Pos: React.FC = () => {
       let calculatedDueDate: string | undefined = undefined;
       if (paymentCondition === 'CRÉDITO') {
          const daysNum = parseInt(creditDays) || 15;
-         const baseDate = emissionDate ? new Date(emissionDate + 'T12:05:00Z') : new Date();
+         const baseDate = (isRetrofechaEnabled && emissionDate) ? new Date(emissionDate + 'T12:05:00Z') : new Date();
          baseDate.setDate(baseDate.getDate() + daysNum);
          calculatedDueDate = baseDate.toISOString().split('T')[0];
       }
@@ -1199,7 +1204,7 @@ export const Pos: React.FC = () => {
                                                   <span className="text-sm font-black text-[#439618] font-mono leading-none">
                                                       {(() => {
                                                           const daysNum = parseInt(creditDays) || 15;
-                                                          const baseDate = emissionDate ? new Date(emissionDate + 'T12:05:00Z') : new Date();
+                                                          const baseDate = (isRetrofechaEnabled && emissionDate) ? new Date(emissionDate + 'T12:05:00Z') : new Date();
                                                           baseDate.setDate(baseDate.getDate() + daysNum);
                                                           return baseDate.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' });
                                                       })()}

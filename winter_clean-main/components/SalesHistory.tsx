@@ -1040,8 +1040,18 @@ export const SalesHistory: React.FC = () => {
   const last30Sales = useMemo(() => {
     return [...sales]
       .filter(sale => !sale.deleted)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 30);
+      .sort((a, b) => {
+        const timeA = new Date(a.date).getTime();
+        const timeB = new Date(b.date).getTime();
+        if (timeB !== timeA) {
+          return timeB - timeA;
+        }
+        // Desempate por ID correlativo de forma descendente (e.g., INT1-00000010 vs INT1-00000009)
+        const numA = parseInt(a.id.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.id.replace(/\D/g, '')) || 0;
+        return numB - numA;
+      })
+      .slice(0, 500);
   }, [sales]);
 
   const filteredSales = useMemo(() => {
