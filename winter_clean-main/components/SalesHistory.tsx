@@ -512,15 +512,15 @@ export const SalesHistory: React.FC = () => {
       
       const res = await sendCPEToVisioner7(payload, apiToken);
       
-      if (res && (res.respuesta === 'OK' || res.success || res.url_pdf || res.pdf)) {
+      if (res && (res.respuesta === 'OK' || res.success || res.url_pdf || res.pdf || res.cod_sunat === "0" || res.cod_sunat === 0)) {
         const updatedSale: Sale = {
           ...sale,
           sunatStatus: 'ACEPTADO_SUNAT',
           sunatPdfUrl: res.url_pdf || res.pdf || "https://example.com/mock-pdf.pdf",
           sunatXmlUrl: res.url_xml || res.xml || "",
           sunatCdrUrl: res.url_cdr || res.cdr || "",
-          sunatResponseCode: res.codigo_respuesta || "0",
-          sunatResponseDescription: res.descripcion_respuesta || "Aceptado",
+          sunatResponseCode: res.cod_sunat || res.codigo_respuesta || "0",
+          sunatResponseDescription: res.msj_sunat || res.descripcion_respuesta || "Aceptado",
           sunatDocumentNumber: reservedNum
         };
         updateSale(updatedSale);

@@ -309,6 +309,11 @@ export const sendCPEToVisioner7 = async (payload: any, apiToken?: string): Promi
     if (data?.url_cdr) console.log("CDR:", data.url_cdr);
     console.groupEnd();
 
+    if (data.cod_sunat && data.cod_sunat !== "0") {
+      throw new Error(`Error devuelto por la API de SUNAT. Código: ${data.cod_sunat} - ${data.msj_sunat}`);
+    }
+
+    // Si cod_sunat es "0" o no existe en la respuesta, es éxito
     return data;
   } catch (error: any) {
     console.error(`%c❌ [SUNAT] EXCEPCIÓN GENERANDO ${docTypeName}:`, "color: #ef4444; font-weight: bold;", error);
