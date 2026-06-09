@@ -223,17 +223,15 @@ export async function sendBillToVisioner7(invoice: Invoice, company: Company): P
 
   console.log("🌸 [Visioner7] Payload enviado:", JSON.stringify(payload, null, 2));
 
-  const proxyUrl = `/api/sunat-proxy?url=${encodeURIComponent('https://service1.visioner7-api.com/api/v1/sunat/generar-cpe')}`;
-
   try {
-    const response = await fetch(proxyUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    const response = await fetch(
+      '/api/sunat-proxy?url=https://service1.visioner7-api.com/api/v1/sunat/generar-cpe',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }
+    );
 
     const rawText = await response.text();
     console.log("✅ [Visioner7] Respuesta raw recibida:", rawText);
