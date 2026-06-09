@@ -496,6 +496,13 @@ export const SalesHistory: React.FC = () => {
         txtCONTRA: ticketConfig?.signaturePassword || "123456",
         txtPAS_FIRMA: ticketConfig?.signaturePassword || "123456",
         txtTIPO_PROCESO: ticketConfig?.productionMode ? "1" : "3",
+        // Enviar el RUC del emisor para que Visioner7 cargue el certificado digital <RUC>.pfx correspondiente
+        txtNRO_DOCUMENTO_EMPRESA: ticketConfig?.ruc || "",
+        txtRUC_EMPRESA: ticketConfig?.ruc || "",
+        txtEMPRESA_RUC: ticketConfig?.ruc || "",
+        txtRuc: ticketConfig?.ruc || "",
+        txtRUC: ticketConfig?.ruc || "",
+        txtNRO_DOCUMENTO_EMISOR: ticketConfig?.ruc || "",
         detalle: cpeItems
       };
       
@@ -2271,6 +2278,15 @@ export const SalesHistory: React.FC = () => {
                                  };
                                  
                                  await updateSale(updatedSale);
+                                 console.group(`%c🔄 [CONVERSIÓN DE DOCUMENTO] ORDEN #${updatedSale.id} CONVERTIDA`, "color: #eab308; font-weight: bold; font-size: 11px;");
+                                 console.log("Nuevo tipo de Comprobante:", updatedSale.documentType);
+                                 console.log("DNI/RUC del Consumidor:", updatedSale.clientDocNumber || "Sin documento");
+                                 console.log("Nombre/Razón Social:");
+                                 console.log(`  Antes: "${pendingConversionSale.customerName}"`);
+                                 console.log(`  Ahora: "${updatedSale.customerName}"`);
+                                 console.log("Estado Sunat restablecido para nueva declaración:", updatedSale.sunatStatus);
+                                 console.log("Datos de la Venta actualizados:", updatedSale);
+                                 console.groupEnd();
                                  setConversionSuccessMsg(`Convertido a ${conversionType} con éxito.`);
                                  
                                  if (selectedSale && selectedSale.id === pendingConversionSale.id) {

@@ -243,38 +243,83 @@ export const reservarSiguienteCorrelativo = async (
  * Envía el payload CPE (Boletas y Facturas) a SUNAT mediante el proxy de nuestro servidor local.
  */
 export const sendCPEToVisioner7 = async (payload: any, apiToken: string): Promise<any> => {
+  const codDoc = payload?.txtCOD_TIPO_DOCUMENTO;
+  let docTypeName = "COMPROBANTE ELECTRÓNICO";
+  if (codDoc === "01") docTypeName = "FACTURA ELECTRÓNICA";
+  else if (codDoc === "03") docTypeName = "BOLETA DE VENTA ELECTRÓNICA";
+  else if (codDoc === "07") docTypeName = "NOTA DE CRÉDITO";
+  else if (codDoc === "08") docTypeName = "NOTA DE DÉBITO";
+
+  console.group(`%c📄 [SUNAT] GENERANDO ${docTypeName} (${payload?.txtNRO_COMPROBANTE || 'NUEVO'})`, "color: #3b82f6; font-weight: bold; font-size: 11px;");
+  console.log("%cPayload enviado a la API:", "color: #4b5563; font-weight: bold;", payload);
+  console.groupEnd();
+
   const url = `/api/v1/sunat/generar-cpe?apiToken=${encodeURIComponent(apiToken)}`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
 
-  if (!response.ok) {
-    throw new Error(`Error en el API de CPE (HTTP ${response.status})`);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`%c❌ [SUNAT] ERROR AL GENERAR ${docTypeName} (${response.status}):`, "color: #ef4444; font-weight: bold;", errText);
+      throw new Error(`Error en el API de CPE (HTTP ${response.status}): ${errText}`);
+    }
+
+    const data = await response.json();
+    console.group(`%c✅ [SUNAT] RESPUESTA DE ${docTypeName} (${payload?.txtNRO_COMPROBANTE}):`, "color: #10b981; font-weight: bold;");
+    console.log("Datos recibidos:", data);
+    console.log(`Respuesta:`, data?.descripcion_respuesta || data?.respuesta || "Sin descripción");
+    if (data?.url_pdf) console.log("%cPDF:", "color: #3b82f6; text-decoration: underline;", data.url_pdf);
+    if (data?.url_xml) console.log("XML:", data.url_xml);
+    if (data?.url_cdr) console.log("CDR:", data.url_cdr);
+    console.groupEnd();
+
+    return data;
+  } catch (error: any) {
+    console.error(`%c❌ [SUNAT] EXCEPCIÓN GENERANDO ${docTypeName}:`, "color: #ef4444; font-weight: bold;", error);
+    throw error;
   }
-
-  return response.json();
 };
 
 /**
  * Envía el payload de Guía de Remitente a SUNAT mediante el proxy de nuestro servidor local.
  */
 export const sendGuiaToVisioner7 = async (payload: any, apiToken: string): Promise<any> => {
+  console.group(`%c🚛 [SUNAT] GENERANDO GUÍA DE REMISIÓN`, "color: #f59e0b; font-weight: bold; font-size: 11px;");
+  console.log("%cPayload enviado a la API:", "color: #4b5563; font-weight: bold;", payload);
+  console.groupEnd();
+
   const url = `/api/v1/sunat/guia-remision?apiToken=${encodeURIComponent(apiToken)}`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
 
-  if (!response.ok) {
-    throw new Error(`Error en el API de Guía de Remisión (HTTP ${response.status})`);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`%c❌ [SUNAT] ERROR AL GENERAR GUÍA DE REMISIÓN (${response.status}):`, "color: #ef4444; font-weight: bold;", errText);
+      throw new Error(`Error en el API de Guía de Remisión (HTTP ${response.status}): ${errText}`);
+    }
+
+    const data = await response.json();
+    console.group(`%c✅ [SUNAT] RESPUESTA DE GUÍA DE REMISIÓN:`, "color: #10b981; font-weight: bold;");
+    console.log("Datos recibidos:", data);
+    console.log(`Respuesta:`, data?.descripcion_respuesta || data?.respuesta || "Sin descripción");
+    if (data?.url_pdf) console.log("%cPDF:", "color: #3b82f6; text-decoration: underline;", data.url_pdf);
+    console.groupEnd();
+
+    return data;
+  } catch (error: any) {
+    console.error(`%c❌ [SUNAT] EXCEPCIÓN GENERANDO GUÍA DE REMISIÓN:`, "color: #ef4444; font-weight: bold;", error);
+    throw error;
   }
-
-  return response.json();
 };

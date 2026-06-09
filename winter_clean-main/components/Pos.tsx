@@ -650,6 +650,17 @@ export const Pos: React.FC = () => {
       };
 
       addSale(sale);
+      
+      console.group(`%c🛒 [PUNTO DE VENTA] VENTA REGISTRADA CON ÉXITO (#${sale.id})`, "color: #4f46e5; font-weight: bold; font-size: 11px;");
+      console.log("Comprobante:", sale.documentType);
+      console.log("Número Referencia SUNAT:", sale.sunatDocumentNumber || "No aplica (Nota de Venta)");
+      console.log("Cliente:", sale.customerName, `(DNI/RUC: ${sale.clientDocNumber || 'N/A'})`);
+      console.log("Moneda:", sale.currency);
+      console.log("Total:", sale.total.toFixed(2));
+      console.log("Detalle de Items:", sale.items);
+      console.log("Objeto Venta completo:", sale);
+      console.groupEnd();
+
       setCart([]);
       setSelectedCustomer(null);
       setIsMobileCartOpen(false);

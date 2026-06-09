@@ -99,7 +99,7 @@ const App: React.FC = () => {
   const [productionLogs, setProductionLogs] = usePersistentState<ProductionLog[]>('wc_production_logs', []);
   const [wasteLogs, setWasteLogs] = usePersistentState<WasteLog[]>('wc_waste_logs', []);
   const [purchases, setPurchases] = usePersistentState<Purchase[]>('wc_purchases', []);
-  const [apiToken, setApiToken] = usePersistentState<string>('wc_api_token', 'sk_1788.HCItQaSi85wlaVxswQnuEhnf7hJIRVB3');
+  const [apiToken, setApiToken] = usePersistentState<string>('wc_api_token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwiZW1haWwiOiJqZWNvdi5jb250YWN0b0BnbWFpbC5jb20iLCJpYXQiOjE3ODA1MTI2MTYsImV4cCI6MTgxMjA0ODYxNn0.zp7dp-yUfMcjkQSH4Q3Vq506nrJvyZJ_zrpsaFimOfM');
   const [decolectaUrl, setDecolectaUrl] = usePersistentState<string>('wc_decolecta_url', 'https://api.decolecta.com/v1');
   
   const [quotations, setQuotations] = usePersistentState<Quotation[]>('wc_quotations', []);

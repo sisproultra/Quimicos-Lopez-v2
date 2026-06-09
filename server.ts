@@ -101,16 +101,24 @@ async function startServer() {
   app.post("/api/v1/sunat/generar-cpe", async (req, res) => {
     try {
       const { apiToken } = req.query;
-      let emailInput = "";
-      let passwordInput = "";
-      if (apiToken && typeof apiToken === 'string' && apiToken.includes(':')) {
-        const parts = apiToken.split(':');
-        emailInput = parts[0];
-        passwordInput = parts.slice(1).join(':');
+      let token = "";
+      let tokenSource = "";
+
+      if (apiToken && typeof apiToken === 'string' && apiToken.startsWith('eyJ') && apiToken.split('.').length === 3) {
+        token = apiToken;
+        tokenSource = "JWT directo del cliente (pestaña Settings)";
+      } else {
+        let emailInput = "";
+        let passwordInput = "";
+        if (apiToken && typeof apiToken === 'string' && apiToken.includes(':')) {
+          const parts = apiToken.split(':');
+          emailInput = parts[0];
+          passwordInput = parts.slice(1).join(':');
+        }
+        tokenSource = `Autenticación automática VisionerLogin para ${emailInput || "USUARIO_DEFAULTS"}`;
+        token = await getVisionerToken(emailInput, passwordInput);
       }
 
-      // Obtener el token de acceso JWT para la API de Visioner7
-      const token = await getVisionerToken(emailInput, passwordInput);
       const payload = req.body;
 
       // Log parsed payload (hide sensitive passwords)
@@ -118,7 +126,11 @@ async function startServer() {
       if (safePayload.txtPASS_SOL_EMPRESA) safePayload.txtPASS_SOL_EMPRESA = "****";
       if (safePayload.txtCONTRA) safePayload.txtCONTRA = "****";
       if (safePayload.txtPAS_FIRMA) safePayload.txtPAS_FIRMA = "****";
-      console.log(`[Proxy CPE] Enviando transacción CPE a Visioner7 con payload:`, JSON.stringify(safePayload, null, 2));
+      
+      console.log(`[Proxy CPE] ---------------------------------------------`);
+      console.log(`[Proxy CPE] Generando CPE con Origen del Token: ${tokenSource}`);
+      console.log(`[Proxy CPE] Token JWT que se enviará en Header: ${token.substring(0, 15)}...${token.substring(token.length - 15)} (Longitud: ${token.length})`);
+      console.log(`[Proxy CPE] Payload enviado a Visioner7:`, JSON.stringify(safePayload, null, 2));
 
       const response = await fetch("https://service1.visioner7-api.com/api/v1/sunat/generar-cpe", {
         method: "POST",
@@ -131,6 +143,7 @@ async function startServer() {
 
       const rawText = await response.text();
       console.log(`[Proxy CPE] Respuesta cruda de Visioner7 recibida con estado ${response.status}:`, rawText);
+      console.log(`[Proxy CPE] ---------------------------------------------`);
 
       let data;
       try {
@@ -150,16 +163,23 @@ async function startServer() {
   app.post("/api/v1/sunat/guia-remision", async (req, res) => {
     try {
       const { apiToken } = req.query;
-      let emailInput = "";
-      let passwordInput = "";
-      if (apiToken && typeof apiToken === 'string' && apiToken.includes(':')) {
-        const parts = apiToken.split(':');
-        emailInput = parts[0];
-        passwordInput = parts.slice(1).join(':');
-      }
+      let token = "";
+      let tokenSource = "";
 
-      // Obtener el token de acceso JWT para la API de Visioner7
-      const token = await getVisionerToken(emailInput, passwordInput);
+      if (apiToken && typeof apiToken === 'string' && apiToken.startsWith('eyJ') && apiToken.split('.').length === 3) {
+        token = apiToken;
+        tokenSource = "JWT directo del cliente (pestaña Settings)";
+      } else {
+        let emailInput = "";
+        let passwordInput = "";
+        if (apiToken && typeof apiToken === 'string' && apiToken.includes(':')) {
+          const parts = apiToken.split(':');
+          emailInput = parts[0];
+          passwordInput = parts.slice(1).join(':');
+        }
+        tokenSource = `Autenticación automática VisionerLogin para ${emailInput || "USUARIO_DEFAULTS"}`;
+        token = await getVisionerToken(emailInput, passwordInput);
+      }
       const payload = req.body;
 
       // Log parsed payload (hide sensitive passwords)
@@ -167,7 +187,11 @@ async function startServer() {
       if (safePayload.PASS_SOL_EMPRESA) safePayload.PASS_SOL_EMPRESA = "****";
       if (safePayload.PAS_FIRMA) safePayload.PAS_FIRMA = "****";
       if (safePayload.CLAVE_TOKEN) safePayload.CLAVE_TOKEN = "****";
-      console.log(`[Proxy Guia] Enviando guía de remisión a Visioner7 con payload:`, JSON.stringify(safePayload, null, 2));
+      
+      console.log(`[Proxy Guia] ---------------------------------------------`);
+      console.log(`[Proxy Guia] Generando Guía con Origen del Token: ${tokenSource}`);
+      console.log(`[Proxy Guia] Token JWT que se enviará en Header: ${token.substring(0, 15)}...${token.substring(token.length - 15)} (Longitud: ${token.length})`);
+      console.log(`[Proxy Guia] Payload de Guía de Remisión enviado a Visioner7:`, JSON.stringify(safePayload, null, 2));
 
       const response = await fetch("https://service1.visioner7-api.com/api/v1/sunat/guia-remision", {
         method: "POST",
@@ -180,6 +204,7 @@ async function startServer() {
 
       const rawText = await response.text();
       console.log(`[Proxy Guia] Respuesta cruda de Visioner7 recibida con estado ${response.status}:`, rawText);
+      console.log(`[Proxy Guia] ---------------------------------------------`);
 
       let data;
       try {
@@ -204,21 +229,26 @@ async function startServer() {
         return res.status(400).json({ error: "Faltan parámetros requeridos: docType o number" });
       }
 
-      // Extraer dinámicamente credenciales si se configuraron en formato 'email:password' en el frontend
-      let customEmail = "";
-      let customPassword = "";
-      if (apiToken && typeof apiToken === 'string' && apiToken.includes(':')) {
-        const parts = apiToken.split(':');
-        customEmail = parts[0];
-        customPassword = parts.slice(1).join(':');
-      }
-
-      // Obtener el token de acceso JWT para la API de Visioner7
-      let token: string;
-      try {
-        token = await getVisionerToken(customEmail, customPassword);
-      } catch (authError: any) {
-        return res.status(401).json({ error: `Fallo de autenticación: ${authError.message}. Por favor verifique sus credenciales.` });
+      // Obtener el token de acceso JWT para la API de Visioner7 o usar el del query directamente si ya es JWT
+      let token = "";
+      let tokenSource = "";
+      if (apiToken && typeof apiToken === 'string' && apiToken.startsWith('eyJ') && apiToken.split('.').length === 3) {
+        token = apiToken;
+        tokenSource = "JWT directo del cliente (pestaña Settings)";
+      } else {
+        let customEmail = "";
+        let customPassword = "";
+        if (apiToken && typeof apiToken === 'string' && apiToken.includes(':')) {
+          const parts = apiToken.split(':');
+          customEmail = parts[0];
+          customPassword = parts.slice(1).join(':');
+        }
+        tokenSource = `Autenticación automática VisionerLogin para ${customEmail || "USUARIO_DEFAULTS"}`;
+        try {
+          token = await getVisionerToken(customEmail, customPassword);
+        } catch (authError: any) {
+          return res.status(401).json({ error: `Fallo de autenticación: ${authError.message}. Por favor verifique sus credenciales.` });
+        }
       }
 
       // Construcción del endpoint correcto de consulta
@@ -230,7 +260,10 @@ async function startServer() {
         targetUrl = `https://service1.visioner7-api.com/api/sunatv1/locales-establecimientos/${number}/1`;
       }
 
+      console.log(`[Proxy Server] ---------------------------------------------`);
       console.log(`[Proxy Server] Consultando ${docType} ${number} en Visioner7 API...`);
+      console.log(`[Proxy Server] Origen del Token: ${tokenSource}`);
+      console.log(`[Proxy Server] Token JWT que se enviará en Header: ${token.substring(0, 15)}...${token.substring(token.length - 15)} (Longitud: ${token.length})`);
 
       const response = await fetch(targetUrl, {
         method: 'GET',

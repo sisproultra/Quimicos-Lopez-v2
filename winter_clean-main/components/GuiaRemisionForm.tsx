@@ -119,7 +119,7 @@ export const GuiaRemisionForm: React.FC = () => {
           sol_usuario: 'MODDATOS',
           sol_password: 'MODDATOS',
           pfx_password: 'MODDATOS',
-          visioner7_token: apiToken || 'sk_11867.t8kBVOUaeNsEQgur18EEGVWOKner1ces',
+          visioner7_token: apiToken || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwiZW1haWwiOiJqZWNvdi5jb250YWN0b0BnbWFpbC5jb20iLCJpYXQiOjE3ODA1MTI2MTYsImV4cCI6MTgxMjA0ODYxNn0.zp7dp-yUfMcjkQSH4Q3Vq506nrJvyZJ_zrpsaFimOfM',
           visioner7_clave: 'MODDATOS'
         });
       }
@@ -189,7 +189,7 @@ export const GuiaRemisionForm: React.FC = () => {
     setIsQueryingSunat(true);
     try {
       const docType = cleanNum.length === 8 ? 'DNI' : 'RUC';
-      const tokenToUse = company?.visioner7_token || apiToken || 'sk_11867.t8kBVOUaeNsEQgur18EEGVWOKner1ces';
+      const tokenToUse = company?.visioner7_token || apiToken || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwiZW1haWwiOiJqZWNvdi5jb250YWN0b0BnbWFpbC5jb20iLCJpYXQiOjE3ODA1MTI2MTYsImV4cCI6MTgxMjA0ODYxNn0.zp7dp-yUfMcjkQSH4Q3Vq506nrJvyZJ_zrpsaFimOfM';
       const result = await searchClient(docType, cleanNum, tokenToUse);
       
       if (result) {
@@ -339,7 +339,7 @@ export const GuiaRemisionForm: React.FC = () => {
 
       // Añadir la guía emitida al AppContext
       const nextId = Math.random().toString(36).substring(7);
-      addGuiaRemision({
+      const generatedGuia = {
         id: nextId,
         nroGuiaCompleto: input.nroComprobante,
         serieDocumento: input.nroComprobante.split('-')[0],
@@ -376,7 +376,14 @@ export const GuiaRemisionForm: React.FC = () => {
           unidadMedida: d.unidadMedida,
           cantidad: parseFloat(d.cantidad)
         }))
-      });
+      };
+
+      console.group(`%c🚛 [SUNAT] GUÍA DE REMISIÓN GENERADA CON ÉXITO`, "color: #10b981; font-weight: bold; font-size: 11px;");
+      console.log("Guía de Remisión:", generatedGuia);
+      console.log(`PDF de SUNAT:`, response.archivo);
+      console.groupEnd();
+
+      addGuiaRemision(generatedGuia);
 
       setSuccessResponse(response);
     } catch (err: any) {
