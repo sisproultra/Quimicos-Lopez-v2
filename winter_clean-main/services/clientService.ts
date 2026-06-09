@@ -260,6 +260,9 @@ export const sendCPEToVisioner7 = async (payload: any, apiToken?: string): Promi
     const fechaDoc = payload.txtFECHA_DOCUMENTO || new Date().toISOString().split('T')[0];
     payload.txtFECHA_VTO = payload.txtFECHA_VTO || fechaDoc;
 
+    // Asegurar que txtTIPO_DOCUMENTO_EMPRESA esté presente (RUC = "6") para evitar el error 1008 de SUNAT
+    payload.txtTIPO_DOCUMENTO_EMPRESA = "6";
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
