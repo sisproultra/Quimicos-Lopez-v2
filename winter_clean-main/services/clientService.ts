@@ -256,6 +256,10 @@ export const sendCPEToVisioner7 = async (payload: any, apiToken?: string): Promi
 
   const url = `/api/sunat-proxy?url=https://service1.visioner7-api.com/api/v1/sunat/generar-cpe`;
   try {
+    // Asegurar que txtFECHA_VTO no esté vacío para evitar el error 0306 de SUNAT
+    const fechaDoc = payload.txtFECHA_DOCUMENTO || new Date().toISOString().split('T')[0];
+    payload.txtFECHA_VTO = payload.txtFECHA_VTO || fechaDoc;
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
