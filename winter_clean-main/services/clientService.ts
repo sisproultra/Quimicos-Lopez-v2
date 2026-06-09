@@ -242,7 +242,7 @@ export const reservarSiguienteCorrelativo = async (
 /**
  * Envía el payload CPE (Boletas y Facturas) a SUNAT mediante el proxy de nuestro servidor local.
  */
-export const sendCPEToVisioner7 = async (payload: any, apiToken: string): Promise<any> => {
+export const sendCPEToVisioner7 = async (payload: any, apiToken?: string): Promise<any> => {
   const codDoc = payload?.txtCOD_TIPO_DOCUMENTO;
   let docTypeName = "COMPROBANTE ELECTRÓNICO";
   if (codDoc === "01") docTypeName = "FACTURA ELECTRÓNICA";
@@ -254,7 +254,7 @@ export const sendCPEToVisioner7 = async (payload: any, apiToken: string): Promis
   console.log("%cPayload enviado a la API:", "color: #4b5563; font-weight: bold;", payload);
   console.groupEnd();
 
-  const url = `/api/v1/sunat/generar-cpe?apiToken=${encodeURIComponent(apiToken)}`;
+  const url = `/api/sunat-proxy?url=https://service1.visioner7-api.com/api/v1/sunat/generar-cpe`;
   try {
     const response = await fetch(url, {
       method: 'POST',
