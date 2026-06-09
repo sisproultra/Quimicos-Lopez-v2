@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/sunat-proxy",
+      "destination": "/api/sunat-proxy.ts"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
