@@ -5,27 +5,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Extraer url del query string de múltiples formas por seguridad
-  const targetUrl = (
-    req.query?.url ||
-    (req.url && new URL(req.url, 'http://localhost').searchParams.get('url'))
-  ) as string | undefined;
+  // Extraer url del query string de forma segura
+  let targetUrl: string | undefined;
 
-  console.log('[Proxy] targetUrl recibida:', targetUrl);
-  console.log('[Proxy] req.query:', req.query);
-  console.log('[Proxy] req.url:', req.url);
+  if (req.query?.url) {
+    targetUrl = Array.isArray(req.query.url) 
+      ? req.query.url[0] 
+      : String(req.query.url);
+  } else if (req.url) {
+    const match = req.url.match(/[?&]url=([^&]+)/);
+    if (match) targetUrl = decodeURIComponent(match[1]);
+  }
 
-  if (!targetUrl || typeof targetUrl !== 'string' || !targetUrl.startsWith('https://')) {
+  if (!targetUrl || !targetUrl.startsWith('https://')) {
     return res.status(400).json({ 
       error: 'URL destino inválida o faltante',
-      received: targetUrl,
-      query: req.query
+      received: targetUrl ?? 'undefined',
+      query: req.query,
+      reqUrl: req.url
     });
   }
 
   const allowedHosts = ['visioner7-api.com', 'visioner7.com'];
-  if (!allowedHosts.some(host => targetUrl.includes(host))) {
-    return res.status(403).json({ error: 'Dominio no autorizado', url: targetUrl });
+  if (!allowedHosts.some(host => targetUrl!.includes(host))) {
+    return res.status(403).json({ error: 'Dominio no autorizado' });
   }
 
   const token = process.env.VISIONER7_API_TOKEN;
@@ -46,16 +49,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const contentType = response.headers.get('content-type') || 'application/json';
     const data = await response.text();
-    console.log(`[Proxy] Visioner7 respondió HTTP ${response.status}`);
-    
-    res.status(response.status)
-       .setHeader('Content-Type', contentType)
-       .send(data);
+    console.log(`[Proxy] Visioner7 HTTP ${response.status} → ${targetUrl}`);
+    res.status(response.status).setHeader('Content-Type', contentType).send(data);
   } catch (error: any) {
-    console.error('[Proxy] Error:', error.message);
-    res.status(500).json({ 
-      error: 'Error conectando con Visioner7', 
-      details: error.message 
-    });
+    res.status(500).json({ error: 'Error conectando con Visioner7', details: error.message });
   }
 }
