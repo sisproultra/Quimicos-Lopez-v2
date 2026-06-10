@@ -324,18 +324,16 @@ export const sendCPEToVisioner7 = async (payload: any, apiToken?: string): Promi
 /**
  * Envía el payload de Guía de Remitente a SUNAT mediante el proxy de nuestro servidor local.
  */
-export const sendGuiaToVisioner7 = async (payload: any, apiToken: string): Promise<any> => {
+export const sendGuiaToVisioner7 = async (payload: any, apiToken?: string): Promise<any> => {
   console.group(`%c🚛 [SUNAT] GENERANDO GUÍA DE REMISIÓN`, "color: #f59e0b; font-weight: bold; font-size: 11px;");
   console.log("%cPayload enviado a la API:", "color: #4b5563; font-weight: bold;", payload);
   console.groupEnd();
 
-  const url = `/api/v1/sunat/guia-remision?apiToken=${encodeURIComponent(apiToken)}`;
+  const url = `/api/sunat-proxy?url=https://service1.visioner7-api.com/api/v1/sunat/guia-remision`;
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
