@@ -753,7 +753,9 @@ export const SalesHistory: React.FC = () => {
         NRO_DOCUMENTO_EMPRESA: ticketConfig?.ruc || "",
         TIPO_DOCUMENTO_EMPRESA: "6",
         RAZON_SOCIAL_EMPRESA: ticketConfig?.shopName || "Químicos e Inversiones López",
-        USUARIO_SOL_EMPRESA: ticketConfig?.solUser || "MODDATOS",
+        USUARIO_SOL_EMPRESA: (ticketConfig?.solUser || "MODDATOS").startsWith(ticketConfig?.ruc || "---")
+          ? (ticketConfig?.solUser || "MODDATOS")
+          : `${ticketConfig?.ruc || ""}${ticketConfig?.solUser || "MODDATOS"}`,
         PASS_SOL_EMPRESA: ticketConfig?.solPassword || "moddatos",
         PAS_FIRMA: ticketConfig?.signaturePassword || "123456",
         ID_TOKEN: ticketConfig?.guiaToken || "",

@@ -132,7 +132,9 @@ export function buildGuiaPayload(input: GuiaRemisionInput, company: Company): Re
     "NRO_DOCUMENTO_EMPRESA": company.ruc,
     "TIPO_DOCUMENTO_EMPRESA": "6",
     "RAZON_SOCIAL_EMPRESA": company.razon_social,
-    "USUARIO_SOL_EMPRESA": company.sol_usuario || "",
+    "USUARIO_SOL_EMPRESA": (company.sol_usuario || "").startsWith(company.ruc || "---")
+      ? (company.sol_usuario || "")
+      : `${company.ruc || ""}${company.sol_usuario || ""}`,
     "PASS_SOL_EMPRESA": company.sol_password || "",
     "PAS_FIRMA": company.pfx_password || "",
     "ID_TOKEN": company.visioner7_token || "",
