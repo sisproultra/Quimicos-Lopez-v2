@@ -1731,7 +1731,7 @@ export const SalesHistory: React.FC = () => {
                  <div className="flex border-b border-slate-100 bg-white px-2 h-11 overflow-x-auto scrollbar-thin shrink-0 whitespace-nowrap">
                     {[
                         { id: 'details', label: 'Detalle', icon: FileText },
-                        { id: 'sunat', label: 'Facturación & Guía', icon: Truck },
+                        /* { id: 'sunat', label: 'Facturación & Guía', icon: Truck }, */
                         { id: 'payments', label: 'Pagos', icon: DollarSign },
                         { id: 'actions', label: 'Opciones', icon: Archive }
                     ].map(tab => (
