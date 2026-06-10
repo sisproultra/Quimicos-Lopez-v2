@@ -280,6 +280,9 @@ export interface Sale {
   sunatDocumentNumber?: string;
   creditDays?: number;
   dueDate?: string;
+  internalCorrelative?: string;
+  documentSeries?: string;
+  documentNumber?: string;
   
   // Nota de Credito
   creditNoteDocumentNumber?: string;

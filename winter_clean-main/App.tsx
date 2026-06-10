@@ -99,8 +99,28 @@ const App: React.FC = () => {
   const [productionLogs, setProductionLogs] = usePersistentState<ProductionLog[]>('wc_production_logs', []);
   const [wasteLogs, setWasteLogs] = usePersistentState<WasteLog[]>('wc_waste_logs', []);
   const [purchases, setPurchases] = usePersistentState<Purchase[]>('wc_purchases', []);
-  const [apiToken, setApiToken] = usePersistentState<string>('wc_api_token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwiZW1haWwiOiJqZWNvdi5jb250YWN0b0BnbWFpbC5jb20iLCJpYXQiOjE3ODA1MTI2MTYsImV4cCI6MTgxMjA0ODYxNn0.zp7dp-yUfMcjkQSH4Q3Vq506nrJvyZJ_zrpsaFimOfM');
-  const [decolectaUrl, setDecolectaUrl] = usePersistentState<string>('wc_decolecta_url', 'https://api.decolecta.com/v1');
+  const [apiToken, setApiTokenInternal] = usePersistentState<string>('wc_api_token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6OSwiZW1haWwiOiJqZWNvdi5jb250YWN0b0BnbWFpbC5jb20iLCJpYXQiOjE3ODA1MTI2MTYsImV4cCI6MTgxMjA0ODYxNn0.zp7dp-yUfMcjkQSH4Q3Vq506nrJvyZJ_zrpsaFimOfM');
+  const [decolectaUrl, setDecolectaUrlInternal] = usePersistentState<string>('wc_decolecta_url', 'https://api.decolecta.com/v1');
+
+  const setApiToken = (token: string) => {
+    setApiTokenInternal(token);
+    try {
+      localStorage.setItem('wc_api_token', token);
+      api.settings.set('wc_api_token', token).catch(e => console.error("Error persisting api token to database:", e));
+    } catch (err) {
+      console.error("Storage write error for api token:", err);
+    }
+  };
+
+  const setDecolectaUrl = (url: string) => {
+    setDecolectaUrlInternal(url);
+    try {
+      localStorage.setItem('wc_decolecta_url', url);
+      api.settings.set('wc_decolecta_url', url).catch(e => console.error("Error persisting decolecta url to database:", e));
+    } catch (err) {
+      console.error("Storage write error for decolecta url:", err);
+    }
+  };
   
   const [quotations, setQuotations] = usePersistentState<Quotation[]>('wc_quotations', []);
   const [activeQuotationForPOS, setActiveQuotationForPOS] = useState<Quotation | null>(null);
@@ -354,6 +374,31 @@ const App: React.FC = () => {
 
         const savedLastOrderId = await api.settings.get('wc_last_order_id', null);
         if (savedLastOrderId) setLastOrderNumber(Number(savedLastOrderId));
+
+        // Load Visioner7 / Decolecta settings from Supabase or localStorage fallback
+        try {
+          const savedApiToken = await api.settings.get('wc_api_token', null);
+          if (savedApiToken) {
+            setApiTokenInternal(savedApiToken);
+          } else {
+            const localToken = localStorage.getItem('wc_api_token');
+            if (localToken) setApiTokenInternal(localToken);
+          }
+        } catch (apiErr) {
+          console.error("Error loading api token settings:", apiErr);
+        }
+
+        try {
+          const savedDecolectaUrl = await api.settings.get('wc_decolecta_url', null);
+          if (savedDecolectaUrl) {
+            setDecolectaUrlInternal(savedDecolectaUrl);
+          } else {
+            const localUrl = localStorage.getItem('wc_decolecta_url');
+            if (localUrl) setDecolectaUrlInternal(localUrl);
+          }
+        } catch (urlErr) {
+          console.error("Error loading decolecta url settings:", urlErr);
+        }
 
         console.log("🚀 Supabase tables synchronized successfully!");
       } catch (error) {

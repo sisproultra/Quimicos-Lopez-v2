@@ -740,6 +740,26 @@ export const salesApi = {
                 netAmount: s.net_amount,
                 taxAmount: s.tax_amount,
                 deleted: s.deleted,
+                currency: s.currency,
+                exchangeRate: s.exchange_rate,
+                sunatStatus: s.sunat_status,
+                sunatPdfUrl: s.sunat_pdf_url,
+                sunatXmlUrl: s.sunat_xml_url,
+                sunatCdrUrl: s.sunat_cdr_url,
+                sunatResponseCode: s.sunat_response_code,
+                sunatResponseDescription: s.sunat_response || s.sunat_response_description || s.sunat_description_respuesta,
+                sunatDocumentNumber: s.sunat_document_number || s.document_number_full,
+                creditDays: s.credit_days,
+                dueDate: s.due_date,
+                internalCorrelative: s.internal_correlative,
+                documentSeries: s.document_series || s.document_serie,
+                documentNumber: s.document_number,
+                creditNoteDocumentNumber: s.credit_note_document_number,
+                creditNotePdfUrl: s.credit_note_pdf_url,
+                creditNoteXmlUrl: s.credit_note_xml_url,
+                creditNoteCdrUrl: s.credit_note_cdr_url,
+                creditNoteStatus: s.credit_note_status,
+                creditNoteResponseDescription: s.credit_note_response_description,
                 items: items?.filter(i => i.sale_id === s.id).map(i => ({
                     serviceId: i.service_id,
                     serviceName: i.service_name,
@@ -777,6 +797,9 @@ export const salesApi = {
             return true;
         }
         try {
+            const isAccepted = sale.sunatResponseCode === "0" || sale.sunatResponseCode === 0;
+            const sunatRespValue = isAccepted ? "Aceptado" : (sale.sunatResponseDescription || null);
+
             const { error: saleError } = await supabase.from('sales').insert({
                 id: sale.id,
                 customer_id: sale.customerId,
@@ -795,7 +818,22 @@ export const salesApi = {
                 client_doc_number: sale.clientDocNumber,
                 net_amount: sale.netAmount,
                 tax_amount: sale.taxAmount,
-                deleted: false
+                deleted: false,
+                currency: sale.currency,
+                exchange_rate: sale.exchangeRate,
+                sunat_status: sale.sunatStatus,
+                sunat_pdf_url: sale.sunatPdfUrl,
+                sunat_xml_url: sale.sunatXmlUrl,
+                sunat_cdr_url: sale.sunatCdrUrl,
+                sunat_response_code: sale.sunatResponseCode,
+                sunat_response: sunatRespValue,
+                sunat_response_description: sale.sunatResponseDescription,
+                sunat_document_number: sale.sunatDocumentNumber,
+                credit_days: sale.creditDays,
+                due_date: sale.dueDate,
+                internal_correlative: sale.internalCorrelative,
+                document_series: sale.documentSeries,
+                document_number: sale.documentNumber
             });
             if (saleError) {
                 if (saleError.code === 'PGRST205') {
@@ -858,6 +896,9 @@ export const salesApi = {
             return true;
         }
         try {
+            const isAccepted = sale.sunatResponseCode === "0" || sale.sunatResponseCode === 0;
+            const sunatRespValue = isAccepted ? "Aceptado" : (sale.sunatResponseDescription || null);
+
             const { error: saleError } = await supabase.from('sales').update({
                 status: sale.status,
                 payment_status: sale.paymentStatus,
@@ -867,7 +908,28 @@ export const salesApi = {
                 delivery_proof_photo: sale.deliveryProofPhoto,
                 dispatched_at: sale.dispatchedAt,
                 delivered_at: sale.deliveredAt,
-                deleted: sale.deleted
+                deleted: sale.deleted,
+                currency: sale.currency,
+                exchange_rate: sale.exchangeRate,
+                sunat_status: sale.sunatStatus,
+                sunat_pdf_url: sale.sunatPdfUrl,
+                sunat_xml_url: sale.sunatXmlUrl,
+                sunat_cdr_url: sale.sunatCdrUrl,
+                sunat_response_code: sale.sunatResponseCode,
+                sunat_response: sunatRespValue,
+                sunat_response_description: sale.sunatResponseDescription,
+                sunat_document_number: sale.sunatDocumentNumber,
+                credit_days: sale.creditDays,
+                due_date: sale.dueDate,
+                internal_correlative: sale.internalCorrelative,
+                document_series: sale.documentSeries,
+                document_number: sale.documentNumber,
+                credit_note_document_number: sale.creditNoteDocumentNumber,
+                credit_note_pdf_url: sale.creditNotePdfUrl,
+                credit_note_xml_url: sale.creditNoteXmlUrl,
+                credit_note_cdr_url: sale.creditNoteCdrUrl,
+                credit_note_status: sale.creditNoteStatus,
+                credit_note_response_description: sale.creditNoteResponseDescription
             }).eq('id', sale.id);
             if (saleError) {
                 if (saleError.code === 'PGRST205') {

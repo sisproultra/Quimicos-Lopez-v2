@@ -776,11 +776,12 @@ export const Pos: React.FC = () => {
       }));
 
       // --- DISPENSADOR ATÓMICO MULTIUSUARIO ---
-      let saleId = '';
+      const randomUuid = generateUUID(); // ID is now a random UUID!
+      let internalCorr = '';
       let reservedDocNum: string | undefined = undefined;
       try {
          // 1. Correlativo Interno Obligatorio para todas las ventas
-         saleId = await reservarSiguienteCorrelativo('CI', 'INT1');
+         internalCorr = await reservarSiguienteCorrelativo('CI', 'INT1');
          
          // 2. Correlativo Oficial de acuerdo al tipo de documento
          if (documentType === 'FACTURA') {
@@ -792,11 +793,21 @@ export const Pos: React.FC = () => {
          }
       } catch (err) {
          console.error("Error al obtener correlativos atómicos, fallback de seguridad:", err);
-         saleId = getNextOrderNumber();
+         internalCorr = getNextOrderNumber();
+      }
+
+      // Separación de serie y número
+      let documentSeries: string | undefined = undefined;
+      let documentNumber: string | undefined = undefined;
+      if (reservedDocNum && reservedDocNum.includes('-')) {
+         const parts = reservedDocNum.split('-');
+         documentSeries = parts[0];
+         documentNumber = parts[1];
       }
 
       const sale: Sale = {
-          id: saleId,
+          id: randomUuid,
+          internalCorrelative: internalCorr, // Separate column and always ascending
           customerId: selectedCustomer.id,
           customerName: selectedCustomer.name,
           items: saleItems,
@@ -818,12 +829,14 @@ export const Pos: React.FC = () => {
           creditDays: paymentCondition === 'CRÉDITO' ? parseInt(creditDays) : undefined,
           dueDate: calculatedDueDate,
           notes: saleNotes,
-          sunatDocumentNumber: reservedDocNum
+          sunatDocumentNumber: reservedDocNum,
+          documentSeries: documentSeries,
+          documentNumber: documentNumber
       };
 
       await addSale(sale);
       
-      console.group(`%c🛒 [PUNTO DE VENTA] VENTA REGISTRADA CON ÉXITO (#${sale.id})`, "color: #4f46e5; font-weight: bold; font-size: 11px;");
+      console.group(`%c🛒 [PUNTO DE VENTA] VENTA REGISTRADA CON ÉXITO (#${sale.internalCorrelative || sale.id})`, "color: #4f46e5; font-weight: bold; font-size: 11px;");
       console.log("Comprobante:", sale.documentType);
       console.log("Número Referencia SUNAT:", sale.sunatDocumentNumber || "No aplica (Nota de Venta)");
       console.log("Cliente:", sale.customerName, `(DNI/RUC: ${sale.clientDocNumber || 'N/A'})`);
@@ -842,7 +855,7 @@ export const Pos: React.FC = () => {
          emitCPEImmediately(sale);
       } else {
          // It's a NOTA_PEDIDO, so success message is simple
-         setPostSaleSuccessMsg(`Nota de Venta #${sale.id} registrada con éxito.`);
+         setPostSaleSuccessMsg(`Nota de Venta #${sale.internalCorrelative || sale.id} registrada con éxito.`);
       }
 
       // Reset POS cart and state so it's clean and ready for the next client while the current receipt/CPE processes

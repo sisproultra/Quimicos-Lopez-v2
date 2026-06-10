@@ -901,7 +901,7 @@ export const SalesHistory: React.FC = () => {
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Imprimir Comprobante #${sale.id}</title>
+        <title>Imprimir Comprobante #${sale.internalCorrelative || sale.id}</title>
         <style>
           body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.5; padding: 25px; font-size: 13px; background-color: #f8fafc; }
           .container { max-width: 800px; margin: 0 auto; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 40px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
@@ -953,7 +953,7 @@ export const SalesHistory: React.FC = () => {
             <div class="ruc-box">
               <h2>R.U.C. ${cleanRuc}</h2>
               <h3>${documentTitle}</h3>
-              <div class="number">Nº ${sale.id}</div>
+              <div class="number">Nº ${sale.internalCorrelative || sale.id}</div>
             </div>
           </div>
           
@@ -1219,7 +1219,9 @@ export const SalesHistory: React.FC = () => {
       // Search term (order or client)
       const matchesSearch = normSearch === '' || 
         normalizeString(sale.customerName).includes(normSearch) || 
-        normalizeString(sale.id).includes(normSearch);
+        normalizeString(sale.id).includes(normSearch) ||
+        (sale.internalCorrelative && normalizeString(sale.internalCorrelative).includes(normSearch)) ||
+        (sale.sunatDocumentNumber && normalizeString(sale.sunatDocumentNumber).includes(normSearch));
 
       // Search insumo / product term
       const matchesInsumo = normInsumo === '' || 
@@ -1284,13 +1286,13 @@ export const SalesHistory: React.FC = () => {
       const storeName = ticketConfig.shopName;
       
       if (sale.status === 'pendiente' || sale.status === 'en_preparacion') {
-          message = `Hola *${customer.name}*, recibimos tu pedido *#${sale.id}* en ${storeName}.%0A%0A📋 *Total:* ${getSaleCurrencySymbol(sale)} ${sale.total.toFixed(2)}%0A📅 *Entrega est:* ${new Date(sale.scheduledDeliveryDate || '').toLocaleString()}%0A%0A¡Pronto será despachado!`;
+          message = `Hola *${customer.name}*, recibimos tu pedido *#${sale.internalCorrelative || sale.id}* en ${storeName}.%0A%0A📋 *Total:* ${getSaleCurrencySymbol(sale)} ${sale.total.toFixed(2)}%0A📅 *Entrega est:* ${new Date(sale.scheduledDeliveryDate || '').toLocaleString()}%0A%0A¡Pronto será despachado!`;
       } else if (sale.status === 'en_ruta') {
           const debt = sale.change < 0 ? Math.abs(sale.change) : 0;
           const debtMsg = debt > 0 ? `%0A💰 *Saldo Pendiente:* ${getSaleCurrencySymbol(sale)} ${debt.toFixed(2)}` : '%0A✅ *Pedido Pagado*';
-          message = `¡Hola *${customer.name}*! 👋%0A%0ATu pedido *#${sale.id}* ya está *EN RUTA* 🚚 hacia tu dirección.${debtMsg}%0A%0AAtento a la llegada.`;
+          message = `¡Hola *${customer.name}*! 👋%0A%0ATu pedido *#${sale.internalCorrelative || sale.id}* ya está *EN RUTA* 🚚 hacia tu dirección.${debtMsg}%0A%0AAtento a la llegada.`;
       } else if (sale.status === 'entregado') {
-          message = `Hola *${customer.name}*, gracias por comprar en ${storeName}.%0A%0AConfirmamos la entrega de tu pedido *#${sale.id}*.%0A%0A¡Esperamos verte pronto! ⭐`;
+          message = `Hola *${customer.name}*, gracias por comprar en ${storeName}.%0A%0AConfirmamos la entrega de tu pedido *#${sale.internalCorrelative || sale.id}*.%0A%0A¡Esperamos verte pronto! ⭐`;
       }
 
       window.open(`https://wa.me/${fullPhone}?text=${message}`, '_blank');
@@ -1300,7 +1302,7 @@ export const SalesHistory: React.FC = () => {
   const handlePrintDispatch = (sale: Sale) => {
       // ... (Print Logic remains same)
       // Simplifying for this snippet to fit limits, but assumes existing print logic is here
-      alert("Imprimiendo orden " + sale.id);
+      alert("Imprimiendo orden " + (sale.internalCorrelative || sale.id));
   };
 
   const getStatusColor = (status: SaleStatus) => {
@@ -1514,7 +1516,7 @@ export const SalesHistory: React.FC = () => {
                         )}
                       </div>
                       <span className="font-mono text-xs text-slate-500 group-hover:text-blue-600 block mt-0.5">
-                        {sale.sunatDocumentNumber || `#${sale.id}`}
+                        {sale.sunatDocumentNumber || sale.internalCorrelative || `#${sale.id}`}
                       </span>
                     </td>
                     <td className="p-4 text-sm text-slate-600 font-semibold font-mono">
