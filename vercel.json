@@ -5,6 +5,10 @@
       "destination": "/api/sunat-proxy.ts"
     },
     {
+      "source": "/api/consultar-doc",
+      "destination": "/api/consultar-doc.ts"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
