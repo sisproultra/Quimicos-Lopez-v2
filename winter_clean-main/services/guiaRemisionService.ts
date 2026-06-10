@@ -56,6 +56,8 @@ export interface GuiaRemisionResponse {
   cod_sunat: string;
   msj_sunat: string;
   hash_cdr: string;
+  url_guia?: string;
+  ticket?: string;
 }
 
 // Company interface matching the user specifications
@@ -220,20 +222,23 @@ export async function sendGuiaRemision(input: GuiaRemisionInput, company: any): 
       throw new Error(data.error || data.details || `Error del proxy de guías (HTTP ${response.status})`);
     }
 
-    const finalRes = data.data || data.result || data;
+    const cdrData = data.hash_cdr || data;
+    const codSunat = String(cdrData.cod_sunat ?? '');
+    const msjSunat = String(cdrData.msj_sunat ?? 'Error desconocido');
+    const urlGuia = cdrData.url_guia || '';
+    const ticket = cdrData.ticket || '';
 
-    const codSunat = String(finalRes.cod_sunat ?? finalRes.codSunat ?? '');
-    const msjSunat = String(finalRes.msj_sunat ?? finalRes.msjSunat ?? finalRes.mensaje ?? 'Error desconocido');
-
-    if (codSunat !== "0" && codSunat !== "") {
-      throw new Error(`SUNAT rechazó la guía: [Código ${codSunat}] ${msjSunat}`);
+    if (codSunat !== "0") {
+      throw new Error(`SUNAT rechazó la guía: [${codSunat}] ${msjSunat}`);
     }
 
     return {
-      archivo: finalRes.archivo || finalRes.pdf || finalRes.url_pdf || '',
-      cod_sunat: codSunat || "0",
-      msj_sunat: msjSunat || 'Aceptada por SUNAT',
-      hash_cdr: finalRes.hash_cdr || finalRes.hashCdr || finalRes.hash || ''
+      archivo: data.hash_cpe || '',
+      cod_sunat: codSunat,
+      msj_sunat: msjSunat,
+      hash_cdr: cdrData.hash_cdr || '',
+      url_guia: urlGuia,
+      ticket: ticket
     };
   } catch (error: any) {
     console.error("❌ [Guia Remision error] Detalle:", error);

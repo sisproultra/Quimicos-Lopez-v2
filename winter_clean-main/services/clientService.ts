@@ -346,11 +346,26 @@ export const sendGuiaToVisioner7 = async (payload: any, apiToken?: string): Prom
     const data = await response.json();
     console.group(`%c✅ [SUNAT] RESPUESTA DE GUÍA DE REMISIÓN:`, "color: #10b981; font-weight: bold;");
     console.log("Datos recibidos:", data);
-    console.log(`Respuesta:`, data?.descripcion_respuesta || data?.respuesta || "Sin descripción");
-    if (data?.url_pdf) console.log("%cPDF:", "color: #3b82f6; text-decoration: underline;", data.url_pdf);
     console.groupEnd();
 
-    return data;
+    const cdrData = data.hash_cdr || data;
+    const codSunat = String(cdrData.cod_sunat ?? '');
+    const msjSunat = String(cdrData.msj_sunat ?? 'Error desconocido');
+    const urlGuia = cdrData.url_guia || '';
+    const ticket = cdrData.ticket || '';
+
+    if (codSunat !== "0") {
+      throw new Error(`SUNAT rechazó la guía: [${codSunat}] ${msjSunat}`);
+    }
+
+    return {
+      archivo: data.hash_cpe || '',
+      cod_sunat: codSunat,
+      msj_sunat: msjSunat,
+      hash_cdr: cdrData.hash_cdr || '',
+      url_guia: urlGuia,
+      ticket: ticket
+    };
   } catch (error: any) {
     console.error(`%c❌ [SUNAT] EXCEPCIÓN GENERANDO GUÍA DE REMISIÓN:`, "color: #ef4444; font-weight: bold;", error);
     throw error;

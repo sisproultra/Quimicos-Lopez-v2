@@ -790,7 +790,7 @@ export const SalesHistory: React.FC = () => {
       
       const res = await sendGuiaToVisioner7(payload, apiToken);
       
-      if (res && (res.respuesta === 'OK' || res.success || res.url_pdf || res.pdf)) {
+      if (res && (res.cod_sunat === "0" || res.respuesta === 'OK' || res.success || res.url_pdf || res.pdf || res.url_guia)) {
         const nuevaGuia: GuiaRemision = {
           id: Math.random().toString(36).substring(7),
           comprobanteAsociadoId: showGuiaForm.id,
@@ -812,10 +812,10 @@ export const SalesHistory: React.FC = () => {
           clienteNroDocumento: showGuiaForm.clientDocNumber || "00000000",
           clienteRazonSocial: showGuiaForm.customerName,
           estadoGuia: 'ACEPTADO',
-          sunatPdfUrl: res.url_pdf || res.pdf || "https://example.com/mock-pdf.pdf",
-          sunatHashGuia: res.hash_guia || res.hash || "",
-          sunatCodigoRespuesta: res.codigo_respuesta || "0",
-          sunatDescripcionRespuesta: res.descripcion_respuesta || "Aceptado",
+          sunatPdfUrl: res.url_guia || res.archivo || res.url_pdf || res.pdf || "https://example.com/mock-pdf.pdf",
+          sunatHashGuia: res.hash_cdr || res.hash_guia || res.hash || "",
+          sunatCodigoRespuesta: res.cod_sunat || res.codigo_respuesta || "0",
+          sunatDescripcionRespuesta: res.msj_sunat || res.descripcion_respuesta || "Aceptado",
           items: showGuiaForm.items.map((item, idx) => ({
             itemIndex: idx + 1,
             codigoProducto: item.serviceId || `SERV${idx+1}`,
