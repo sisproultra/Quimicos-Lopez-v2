@@ -730,63 +730,61 @@ export const SalesHistory: React.FC = () => {
       const payload = {
         TIPO_PROCESO: ticketConfig?.productionMode ? "1" : "3",
         COD_TIPO_DOCUMENTO: "09", // Guía de Remitente
+        COD_MODALIDAD_TRASLADO: guiaModalidad,
         NRO_COMPROBANTE: reservedGuiaNum,
         FECHA_DOCUMENTO: new Date().toISOString().split('T')[0],
+        FECHA_INICIO: new Date().toISOString().split('T')[0],
+        NOTA: "VENTA",
         COD_MOTIVO_TRASLADO: guiaMotivo,
         DESCRIPCION_MOTIVO_TRASLADO: guiaMotivoDesc,
         COD_UND_PESO_BRUTO: "KGM",
         PESO_BRUTO: parseFloat(guiaPeso).toFixed(2),
         TOTAL_BULTOS: parseInt(guiaBultos, 10).toString(),
-        COD_MODALIDAD_TRASLADO: guiaModalidad,
-        FECHA_INICIO: new Date().toISOString().split('T')[0],
-        PLACA_VEHICULO: guiaModalidad === '02' ? guiaPlaca : "",
-        PLACA_CARRETA: "",
-        COD_UBIGEO_DESTINO: guiaUbgLlegada,
-        DIRECCION_DESTINO: guiaDirLlegada,
-        COD_UBIGEO_ORIGEN: guiaUbgPartida,
-        DIRECCION_ORIGEN: guiaDirPartida,
-        
-        CLIENTE_TIPO_DOCUMENTO: showGuiaForm.clientDocNumber?.length === 11 ? "6" : "1",
-        CLIENTE_NRO_DOCUMENTO: showGuiaForm.clientDocNumber || "00000000",
-        CLIENTE_RAZON_SOCIAL: showGuiaForm.customerName || "CLIENTE GENERICO",
-        
-        COMPROBANTE: showGuiaForm.sunatDocumentNumber || "",
-        DOC_REL_SERIE: showGuiaForm.sunatDocumentNumber ? showGuiaForm.sunatDocumentNumber.split('-')[0] : "",
-        DOC_REL_NUMERO: showGuiaForm.sunatDocumentNumber ? showGuiaForm.sunatDocumentNumber.split('-')[1] : "",
-        DOC_REL_CODIGO: showGuiaForm.documentType === 'FACTURA' ? "01" : "03",
-        DOC_REL_EMPRESA_RUC: "",
-        
-        CONDUCTOR: guiaModalidad === '02' ? [
-          {
-            COD_TIPO_DOCUMENTO: "1", // DNI
-            NRO_DOCUMENTO: guiaChoferDni,
-            NOMBRES: guiaChoferNombres,
-            APELLIDOS: guiaChoferApellidos,
-            LICENCIA: guiaChoferLicencia
-          }
-        ] : [],
-        
-        TRANSPORTISTA: guiaModalidad === '01' ? [
-          {
-            COD_TIPO_DOCUMENTO: "6", // RUC
-            NRO_DOCUMENTO: guiaTranspRuc,
-            RAZON_SOCIAL: guiaTranspRazonSocial,
-            NRO_MTC: ""
-          }
-        ] : [],
-        
+        ITEM_ENVIO: "1",
+        FLG_ANULADO: "0",
+        NRO_DOCUMENTO_REFERENCIA: "",
+        COD_DOCUMENTO_RELACIODO: "",
+        DOCUMENTO_RELACIODO: "",
+        COD_DOCUMENTO_RELACIODO_EMPRESA: "",
+        NRO_DOCUMENTO_RELACIODO_EMPRESA: "",
+        DOC_REFERENCIA_ANU: "",
+        COD_TIPO_DOC_REFANU: "",
+
+        NRO_DOCUMENTO_EMPRESA: ticketConfig?.ruc || "",
+        TIPO_DOCUMENTO_EMPRESA: "6",
+        RAZON_SOCIAL_EMPRESA: ticketConfig?.shopName || "Químicos e Inversiones López",
         USUARIO_SOL_EMPRESA: ticketConfig?.solUser || "MODDATOS",
         PASS_SOL_EMPRESA: ticketConfig?.solPassword || "moddatos",
         PAS_FIRMA: ticketConfig?.signaturePassword || "123456",
         ID_TOKEN: ticketConfig?.guiaToken || "",
         CLAVE_TOKEN: ticketConfig?.guiaClave || "",
+        COD_UBIGEO_ORIGEN: guiaUbgPartida,
+        DIRECCION_ORIGEN: guiaDirPartida,
+
+        TIPO_DOCUMENTO_CLIENTE: showGuiaForm.clientDocNumber?.length === 11 ? "6" : "1",
+        NRO_DOCUMENTO_CLIENTE: showGuiaForm.clientDocNumber || "00000000",
+        RAZON_SOCIAL_CLIENTE: showGuiaForm.customerName || "CLIENTE GENERICO",
+        COD_UBIGEO_DESTINO: guiaUbgLlegada,
+        DIRECCION_DESTINO: guiaDirLlegada,
+
+        PLACA_VEHICULO: guiaModalidad === '02' ? guiaPlaca : "",
+        TIPO_DOCUMENTO_TRANSPORTISTA: guiaModalidad === '01' ? "6" : "",
+        NRO_DOCUMENTO_TRANSPORTISTA: guiaModalidad === '01' ? guiaTranspRuc : "",
+        RAZON_SOCIAL_TRANSPORTISTA: guiaModalidad === '01' ? guiaTranspRazonSocial : "",
         
+        COD_TIPO_DOC_CHOFER: guiaModalidad === '02' ? "1" : "",
+        NRO_DOC_CHOFER: guiaModalidad === '02' ? guiaChoferDni : "",
+        NOMBRES_CHOFER: guiaModalidad === '02' ? guiaChoferNombres : "",
+        APELLIDOS_CHOFER: guiaModalidad === '02' ? guiaChoferApellidos : "",
+        LIC_CONDUCIR_CHOFER: guiaModalidad === '02' ? (guiaChoferLicencia || "") : "",
+
         detalle: showGuiaForm.items.map((item, idx) => ({
           ITEM: (idx + 1).toString(),
-          CODIGO_PRODUCTO: item.serviceId || `SERV${idx+1}`,
-          DESCRIPCION: item.serviceName || "SERVICIO DE LAVANDERIA",
+          ORDER_ITEM: (idx + 1).toString(),
           UNIDAD_MEDIDA: "NIU",
-          CANTIDAD: item.quantity.toString()
+          CANTIDAD: item.quantity.toString(),
+          DESCRIPCION: item.serviceName || "SERVICIO DE LAVANDERIA",
+          CODIGO: item.serviceId || `SERV${idx+1}`
         }))
       };
       
