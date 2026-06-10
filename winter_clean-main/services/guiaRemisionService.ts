@@ -196,17 +196,15 @@ export async function sendGuiaRemision(input: GuiaRemisionInput, company: any): 
 
   console.log("🚚 [Guia Remision] Payload:", JSON.stringify(payload, null, 2));
 
-  const proxyUrl = `/api/sunat-proxy?url=${encodeURIComponent('https://service1.visioner7-api.com/api/v1/sunat/guia-remision')}`;
-
   try {
-    const response = await fetch(proxyUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    const response = await fetch(
+      '/api/sunat-proxy?url=https://service1.visioner7-api.com/api/v1/sunat/guia-remision',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }
+    );
 
     const rawText = await response.text();
     console.log("📦 [Guia Remision] Respuesta raw recibida:", rawText);
