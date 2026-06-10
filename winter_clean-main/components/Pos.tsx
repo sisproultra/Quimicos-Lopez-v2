@@ -242,6 +242,7 @@ export const Pos: React.FC = () => {
   // New Customer Modal State
   const [isNewCustomerModalOpen, setIsNewCustomerModalOpen] = useState(false);
   const [isSearchingClient, setIsSearchingClient] = useState(false);
+  const [searchClientError, setSearchClientError] = useState<string | null>(null);
   const [newCustomerForm, setNewCustomerForm] = useState({
     docType: 'DNI' as 'DNI' | 'RUC' | 'SIN_DOCUMENTO',
     docNumber: '',
@@ -265,6 +266,12 @@ export const Pos: React.FC = () => {
   }, [zones]);
 
   useEffect(() => {
+    if (!isNewCustomerModalOpen) {
+      setSearchClientError(null);
+    }
+  }, [isNewCustomerModalOpen]);
+
+  useEffect(() => {
     if (paymentMethods && paymentMethods.length > 0) {
       const active = paymentMethods.find(pm => pm.isActive && !pm.deleted);
       if (active) {
@@ -278,23 +285,24 @@ export const Pos: React.FC = () => {
   const handleQueryDecolecta = async () => {
     const { docType, docNumber } = newCustomerForm;
     if (docType === 'SIN_DOCUMENTO') {
-        alert("No es necesario buscar en Decolecta para clientes sin documento.");
+        setSearchClientError("No es necesario buscar en Decolecta para clientes sin documento.");
         return;
     }
     if (!docNumber) {
-        alert("Por favor, ingrese un número de documento");
+        setSearchClientError("Por favor, ingrese un número de documento");
         return;
     }
     if (docType === 'DNI' && docNumber.length !== 8) {
-        alert("El DNI debe contener exactamente 8 dígitos");
+        setSearchClientError("El DNI debe contener exactamente 8 dígitos");
         return;
     }
     if (docType === 'RUC' && docNumber.length !== 11) {
-        alert("El RUC debe contener exactamente 11 dígitos");
+        setSearchClientError("El RUC debe contener exactamente 11 dígitos");
         return;
     }
 
     setIsSearchingClient(true);
+    setSearchClientError(null);
     try {
         const result = await searchClient(docType as 'DNI' | 'RUC', docNumber, apiToken);
         console.log("[POS Query Result]", result);
@@ -310,13 +318,12 @@ export const Pos: React.FC = () => {
                 sunatStatus: result.sunatStatus || '',
                 sunatCondition: result.sunatCondition || ''
             }));
-            alert(`Información consultada de manera exitosa.\n\nNombre/Razón Social: ${result.name}\nDirección: ${result.address || 'N/A'}`);
         } else {
-            alert("No se obtuvieron registros para el documento proporcionado.");
+            setSearchClientError("No se obtuvieron registros para el documento proporcionado.");
         }
     } catch (err: any) {
         console.error("Error al consultar Decolecta:", err);
-        alert(err.message || "Error al realizar la consulta del documento con Decolecta.");
+        setSearchClientError(err.message || "Error al realizar la consulta del documento con Decolecta.");
     } finally {
         setIsSearchingClient(false);
     }
@@ -325,7 +332,7 @@ export const Pos: React.FC = () => {
   const handleCreateCustomer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustomerForm.name) {
-        alert("La Razón Social o el Nombre Completo es obligatorio");
+        setSearchClientError("La Razón Social o el Nombre Completo es obligatorio");
         return;
     }
 
@@ -367,7 +374,6 @@ export const Pos: React.FC = () => {
         sunatStatus: '',
         sunatCondition: ''
     });
-    alert("¡Cliente registrado y asignado de manera exitosa!");
   };
 
   // Historic prices search
@@ -1601,11 +1607,14 @@ export const Pos: React.FC = () => {
                                       <button
                                           key={doc}
                                           type="button"
-                                          onClick={() => setNewCustomerForm(prev => ({ 
-                                              ...prev, 
-                                              docType: doc as any,
-                                              docNumber: doc === 'SIN_DOCUMENTO' ? '' : prev.docNumber
-                                          }))}
+                                          onClick={() => {
+                                              setNewCustomerForm(prev => ({ 
+                                                  ...prev, 
+                                                  docType: doc as any,
+                                                  docNumber: doc === 'SIN_DOCUMENTO' ? '' : prev.docNumber
+                                              }));
+                                              setSearchClientError(null);
+                                          }}
                                           className={`py-2 px-3 text-xs font-bold rounded-xl border transition-all text-center uppercase tracking-wide cursor-pointer ${
                                               newCustomerForm.docType === doc 
                                               ? 'bg-[#51B01E]/10 border-[#51B01E] text-[#51B01E]' 
@@ -1630,7 +1639,10 @@ export const Pos: React.FC = () => {
                                           placeholder={`Ingresar ${newCustomerForm.docType}`}
                                           className="flex-1 px-3 py-2 border border-slate-200 rounded-xl outline-none font-mono text-sm shadow-sm focus:ring-2 focus:ring-[#51B01E]/20 focus:border-[#51B01E]"
                                           value={newCustomerForm.docNumber}
-                                          onChange={e => setNewCustomerForm(prev => ({ ...prev, docNumber: e.target.value.replace(/\D/g, '') }))}
+                                          onChange={e => {
+                                              setNewCustomerForm(prev => ({ ...prev, docNumber: e.target.value.replace(/\D/g, '') }));
+                                              setSearchClientError(null);
+                                          }}
                                           onKeyDown={e => {
                                               if (e.key === 'Enter') {
                                                   e.preventDefault();
@@ -1649,6 +1661,9 @@ export const Pos: React.FC = () => {
                                           ) : 'Buscar'}
                                       </button>
                                   </div>
+                                  {searchClientError && (
+                                      <p className="text-red-500 text-xs font-extrabold mt-1.5 bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 animate-pulse">{searchClientError}</p>
+                                  )}
                               </div>
                           )}
 

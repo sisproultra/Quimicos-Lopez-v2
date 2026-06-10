@@ -61,8 +61,8 @@ export const CustomerManager: React.FC = () => {
     alertColor: 'red',
     docType: 'DNI',
     docNumber: '',
-    department: 'LIMA',
-    province: 'LIMA',
+    department: '',
+    province: '',
     contacts: [{ name: '', phone: '', type: 'DUEÑO' }]
   });
 
@@ -135,9 +135,9 @@ export const CustomerManager: React.FC = () => {
         countryCode: '+51', 
         docType: 'DNI',
         docNumber: '',
-        department: 'LIMA',
-        province: 'LIMA',
-        district: 'LIMA',
+        department: '',
+        province: '',
+        district: '',
         zone: zones[0] || 'CENTRO',
         contacts: [{ name: '', phone: '', type: 'DUEÑO' }],
         alertMessage: '',
