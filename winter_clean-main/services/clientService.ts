@@ -371,3 +371,89 @@ export const sendGuiaToVisioner7 = async (payload: any, apiToken?: string): Prom
     throw error;
   }
 };
+
+/**
+ * Obtener tipo de cambio SUNAT para un año y mes especificados desde la API de Visioner7.
+ */
+export const getSunatExchangeRate = async (anio: number, mes: number): Promise<any> => {
+  const url = `/api/sunat-proxy?url=https://service1.visioner7-api.com/api/sunatv1/tipo-cambio`;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        anio,
+        mes,
+        token: "v7"
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP Error ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error en getSunatExchangeRate:", error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene la tasa de cambio SUNAT más reciente (Compra y Venta)
+ * intentando el mes actual y retrocediendo al mes anterior si es necesario.
+ */
+export const getLatestSunatExchangeRate = async (): Promise<{ compra: number; venta: number; fecha: string } | null> => {
+  const now = new Date();
+  let anio = now.getFullYear();
+  let mes = now.getMonth() + 1;
+
+  try {
+    let result = await getSunatExchangeRate(anio, mes);
+    let rates = result?.data || [];
+
+    // Si la lista está vacía, intentamos con el mes anterior
+    if (rates.length === 0) {
+      mes = mes - 1;
+      if (mes === 0) {
+        mes = 12;
+        anio = anio - 1;
+      }
+      result = await getSunatExchangeRate(anio, mes);
+      rates = result?.data || [];
+    }
+
+    if (rates.length === 0) return null;
+
+    let latestCompra: string | null = null;
+    let latestVenta: string | null = null;
+    let latestDate: string | null = null;
+
+    // Buscamos los valores más recientes del final de la lista hacia atrás
+    for (let i = rates.length - 1; i >= 0; i--) {
+      const rate = rates[i];
+      if (rate.codTipo === 'C' && !latestCompra) {
+        latestCompra = rate.valTipo;
+        if (!latestDate) latestDate = rate.fecPublica;
+      }
+      if (rate.codTipo === 'V' && !latestVenta) {
+        latestVenta = rate.valTipo;
+        if (!latestDate) latestDate = rate.fecPublica;
+      }
+      if (latestCompra && latestVenta) break;
+    }
+
+    if (latestCompra && latestVenta) {
+      return {
+        compra: parseFloat(latestCompra),
+        venta: parseFloat(latestVenta),
+        fecha: latestDate || ''
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("Error actualizando la tasa de cambio:", error);
+    return null;
+  }
+};
+

@@ -1,6 +1,6 @@
 import React, { useContext, useState, useMemo, useEffect } from 'react';
 import { AppContext } from '../App';
-import { Customer, SaleItem, Service, Sale, Quotation } from '../types';
+import { Customer, SaleItem, Service, Sale, Quotation, PaymentDetail } from '../types';
 import { Search, User, ShoppingCart, Plus, Minus, Trash2, Save, X, ChevronUp, Package, ShoppingBag, CheckCircle, AlertCircle, FileText, LayoutGrid, List, Phone, MapPin, Smartphone, Banknote, QrCode, Clock, Wallet, CreditCard, Calendar, Eye, Loader2, ArrowDown } from 'lucide-react';
 import { searchClient, reservarSiguienteCorrelativo, sendCPEToVisioner7 } from '../services/clientService';
 import { generateUUID } from '../services/api';
@@ -29,7 +29,25 @@ export const Pos: React.FC = () => {
   // Error Message State (Stock)
   const [showError, setShowError] = useState<string | null>(null);
 
-  // Billing & Retrofecha (Electronic Invoicing up to 2 days override)
+  // Track raw input strings for quantities and prices to allow fluent decimal typing
+  const [qtyInputs, setQtyInputs] = useState<Record<string, string>>({});
+  const [priceInputs, setPriceInputs] = useState<Record<string, string>>({});
+
+  const getQtyInputValue = (serviceId: string, quantity: number) => {
+      if (qtyInputs[serviceId] !== undefined) {
+          return qtyInputs[serviceId];
+      }
+      return quantity === 0 ? '' : quantity.toString();
+  };
+
+  const getPriceInputValue = (serviceId: string, price: number) => {
+      if (priceInputs[serviceId] !== undefined) {
+          return priceInputs[serviceId];
+      }
+      const val = getDisplayPrice(price);
+      return val === 0 ? '' : val.toString();
+  };
+
   const [documentType, setDocumentType] = useState<'BOLETA' | 'FACTURA' | 'NOTA_PEDIDO'>('NOTA_PEDIDO');
   const [saleCurrency, setSaleCurrency] = useState<'PEN' | 'USD'>('PEN');
   const [emissionDate, setEmissionDate] = useState(() => {
@@ -513,6 +531,66 @@ export const Pos: React.FC = () => {
                   price: product.price,
                   subtotal: product.price
               }];
+          }
+          return prev;
+      });
+  };
+
+  const setCartItemQuantity = (product: Service, qty: number) => {
+      if (qty < 0) return;
+
+      // STOCK VALIDATION logic
+      if (product.trackStock) {
+          const availableStock = product.stock || 0;
+          if (qty > availableStock) {
+              setShowError(`Stock insuficiente. Solo quedan ${availableStock} ${product.unit}`);
+              setTimeout(() => setShowError(null), 2000);
+              return; // Stop execution
+          }
+      }
+
+      setCart(prev => {
+          const existingIdx = prev.findIndex(i => i.serviceId === product.id);
+
+          if (existingIdx >= 0) {
+              const currentItem = prev[existingIdx];
+              const newCart = [...prev];
+              newCart[existingIdx] = {
+                  ...currentItem,
+                  quantity: qty,
+                  subtotal: qty * currentItem.price
+              };
+              return newCart;
+          } else {
+              return [...prev, {
+                  serviceId: product.id,
+                  serviceName: product.name,
+                  quantity: qty,
+                  price: product.price,
+                  subtotal: qty * product.price
+              }];
+          }
+      });
+  };
+
+  const setCartItemPrice = (product: Service, displayPrice: number) => {
+      if (displayPrice < 0) return;
+
+      // Convert display price (which is in PEN or USD) back to standard base Sole price
+      const priceInSoles = saleCurrency === 'USD' ? displayPrice * exchangeRate : displayPrice;
+
+      setCart(prev => {
+          const existingIdx = prev.findIndex(i => i.serviceId === product.id);
+
+          if (existingIdx >= 0) {
+              const currentItem = prev[existingIdx];
+              const newCart = [...prev];
+              newCart[existingIdx] = {
+                  ...currentItem,
+                  price: priceInSoles,
+                  subtotal: currentItem.quantity * priceInSoles
+              };
+              return newCart;
           }
           return prev;
       });
@@ -1098,8 +1176,44 @@ export const Pos: React.FC = () => {
                   <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm animate-fade-in">
                       <div className="flex-1 min-w-0 mr-2">
                           <div className="text-sm font-bold text-slate-800 leading-tight truncate">{item.serviceName}</div>
-                          <div className="text-xs text-slate-500 mt-1 font-mono">
-                              {getDisplayCurrencySymbol()} {getDisplayPrice(item.price).toFixed(2)} x {item.quantity} = <span className="font-bold text-slate-700">{getDisplayCurrencySymbol()} {getDisplayPrice(item.subtotal).toFixed(2)}</span>
+                          <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-1.5 font-mono">
+                              <span className="text-slate-400 font-semibold select-none">Precio:</span>
+                              <div className="flex items-center bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 max-w-[85px] hover:border-[#51B01E] focus-within:border-[#51B01E] transition-colors">
+                                  <span className="text-slate-400 font-bold mr-0.5 text-[10px] select-none">{getDisplayCurrencySymbol()}</span>
+                                  <input 
+                                      type="number"
+                                      step="any"
+                                      min="0"
+                                      value={getPriceInputValue(item.serviceId, item.price)}
+                                      onChange={(e) => {
+                                          const prod = services.find(s => s.id === item.serviceId);
+                                          if (prod) {
+                                              const strVal = e.target.value;
+                                              setPriceInputs(prev => ({ ...prev, [item.serviceId]: strVal }));
+                                              const val = parseFloat(strVal);
+                                              if (!isNaN(val)) {
+                                                  setCartItemPrice(prod, val);
+                                              } else if (strVal === '') {
+                                                  setCartItemPrice(prod, 0);
+                                              }
+                                          }
+                                      }}
+                                      onBlur={() => {
+                                          setPriceInputs(prev => {
+                                              const copy = { ...prev };
+                                              delete copy[item.serviceId];
+                                              return copy;
+                                          });
+                                      }}
+                                      className="w-full bg-transparent text-slate-700 font-bold text-xs focus:outline-none p-0"
+                                  />
+                              </div>
+                              <span className="text-slate-400 select-none">x</span>
+                              <span className="text-slate-650 font-bold">{item.quantity}</span>
+                              <span className="text-slate-400 select-none">=</span>
+                              <span className="font-bold text-[#51B01E] bg-[#51B01E]/5 px-2 py-0.5 rounded border border-[#51B01E]/10 select-none">
+                                  {getDisplayCurrencySymbol()} {getDisplayPrice(item.subtotal).toFixed(2)}
+                              </span>
                           </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -1113,7 +1227,36 @@ export const Pos: React.FC = () => {
                                 >
                                     <Minus size={14}/>
                                 </button>
-                                <span className="w-6 text-center text-sm font-bold select-none">{item.quantity}</span>
+                                <input 
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    value={getQtyInputValue(item.serviceId, item.quantity)}
+                                    onChange={(e) => {
+                                        const prod = services.find(s => s.id === item.serviceId);
+                                        if (prod) {
+                                            const strVal = e.target.value;
+                                            setQtyInputs(prev => ({ ...prev, [item.serviceId]: strVal }));
+                                            const val = parseFloat(strVal);
+                                            if (!isNaN(val)) {
+                                                setCartItemQuantity(prod, val);
+                                            } else if (strVal === '') {
+                                                setCartItemQuantity(prod, 0);
+                                            }
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        if (item.quantity === 0) {
+                                            setCart(prev => prev.filter(i => i.serviceId !== item.serviceId));
+                                        }
+                                        setQtyInputs(prev => {
+                                            const copy = { ...prev };
+                                            delete copy[item.serviceId];
+                                            return copy;
+                                        });
+                                    }}
+                                    className="w-16 text-center text-sm font-bold bg-white border border-slate-250 rounded focus:border-[#51B01E] focus:outline-none"
+                                />
                                 <button 
                                     onClick={() => {
                                         const prod = services.find(s => s.id === item.serviceId);
@@ -1871,10 +2014,10 @@ export const Pos: React.FC = () => {
                                   <div 
                                       key={prod.id} 
                                       onClick={() => !isOutOfStock && updateCartItem(prod, 1)}
-                                      className={`bg-white p-4.5 rounded-2xl border border-slate-200/85 hover:border-[#51B01E]/40 hover:bg-slate-50/40 hover:shadow-lg cursor-pointer transition-all duration-300 flex flex-col justify-between h-40 select-none relative overflow-hidden ${isOutOfStock ? 'opacity-60 bg-slate-100/30 cursor-not-allowed' : ''}`}
+                                       className={`bg-white p-4.5 rounded-2xl border border-slate-200/85 hover:border-[#51B01E]/40 hover:bg-slate-50/40 hover:shadow-lg cursor-pointer transition-all duration-300 flex flex-col justify-between h-40 select-none relative overflow-hidden ${isOutOfStock ? 'opacity-60 bg-slate-100/30 cursor-not-allowed' : ''}`}
                                   >
                                       {/* Branded Left Accent Strip */}
-                                      <div className={`absolute left-0 top-0 bottom-0 w-[4px] ${isOutOfStock ? 'bg-red-500' : 'bg-[#51B01E]'}`}></div>
+                                       <div className={`absolute left-0 top-0 bottom-0 w-[4px] ${isOutOfStock ? 'bg-red-500' : 'bg-[#51B01E]'}`}></div>
                                       <div>
                                           <div className="font-extrabold text-slate-900 text-[14px] leading-tight mb-1">{prod.name}</div>
                                           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">SKU: {prod.internalCode || 'S/C'}</div>
@@ -1883,88 +2026,140 @@ export const Pos: React.FC = () => {
                                       <div className="flex justify-between items-end">
                                           <div>
                                               <div className="font-black text-lg text-slate-900">{getDisplayCurrencySymbol()} {getDisplayPrice(prod.price).toFixed(2)}</div>
-                                              <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider inline-block mt-1.5 ${isOutOfStock ? 'bg-red-100 text-red-650' : 'bg-[#51B01E]/10 text-[#51B01E]'}`}>
+                                               <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase tracking-wider inline-block mt-1.5 ${isOutOfStock ? 'bg-red-100 text-red-650' : 'bg-[#51B01E]/10 text-[#51B01E]'}`}>
                                                   Stock: {prod.stock} {prod.unit}
                                               </span>
                                           </div>
                                           
                                           {inCart ? (
-                                               <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1 border border-slate-200 shadow-3xs" onClick={(e) => e.stopPropagation()}>
-                                                    <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, -1); }} className="w-8 h-8 bg-white rounded shadow text-slate-600 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-colors cursor-pointer"><Minus size={16}/></button>
-                                                    <span className="font-bold w-6 text-center">{inCart.quantity}</span>
-                                                    <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, 1); }} className="w-8 h-8 bg-white rounded shadow text-blue-600 flex items-center justify-center hover:bg-blue-50 transition-colors cursor-pointer"><Plus size={16}/></button>
-                                               </div>
-                                          ) : (
-                                               <button 
-                                                  onClick={(e) => { e.stopPropagation(); !isOutOfStock && updateCartItem(prod, 1); }} 
-                                                  disabled={isOutOfStock}
-                                                  className={`${isOutOfStock ? 'bg-slate-300 cursor-not-allowed' : themeColors.primary} text-white p-2 rounded-lg shadow-sm hover:brightness-110 active:scale-95 transition-all cursor-pointer`}
-                                               >
-                                                   <Plus size={20} />
-                                               </button>
-                                          )}
-                                      </div>
-                                  </div>
-                              );
-                          })}
-                      </div>
-                  ) : (
-                      <div className="space-y-2.5 overflow-y-auto pr-2 pb-2">
-                          {filteredProducts.map(prod => {
-                              const inCart = getCartItem(prod.id);
-                              const isOutOfStock = prod.trackStock && (prod.stock || 0) <= 0;
-                              
-                              return (
-                                  <div 
-                                      key={prod.id} 
-                                      onClick={() => !isOutOfStock && updateCartItem(prod, 1)}
-                                      className={`bg-white p-3.5 rounded-xl border border-slate-200 hover:border-slate-350 hover:bg-slate-50/50 hover:shadow-sm cursor-pointer transition-all flex items-center justify-between gap-4 select-none ${isOutOfStock ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                  >
-                                      <div className="min-w-0 flex-1 flex items-center gap-3">
-                                          <div className="bg-[#51B01E]/10 text-[#51B01E] p-2.5 rounded-xl flex-none">
-                                              <Package size={20} />
-                                          </div>
-                                          <div className="min-w-0">
-                                              <span className="font-bold text-slate-800 text-base block truncate leading-snug">{prod.name}</span>
-                                              <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
-                                                  <span>Cod: {prod.internalCode || '-'}</span>
-                                                  <span>•</span>
-                                                  <span className={`font-semibold ${isOutOfStock ? 'text-red-500' : 'text-slate-600'}`}>
-                                                      Stock: {prod.stock} {prod.unit}
-                                                  </span>
-                                              </div>
-                                          </div>
-                                      </div>
-
-                                      <div className="flex items-center gap-6 flex-none">
-                                          <div className="text-right">
-                                              <div className={`font-black text-lg ${themeColors.text}`}>{getDisplayCurrencySymbol()} {getDisplayPrice(prod.price).toFixed(2)}</div>
-                                              <span className="text-[10px] uppercase font-black tracking-wider text-slate-400">P. Unit.</span>
-                                          </div>
-
-                                          <div className="w-32 flex justify-end">
-                                              {inCart ? (
-                                                  <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1 border border-slate-200" onClick={(e) => e.stopPropagation()}>
-                                                      <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, -1); }} className="w-8 h-8 bg-white rounded shadow text-slate-600 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-colors cursor-pointer"><Minus size={14}/></button>
-                                                      <span className="font-bold w-6 text-center text-sm">{inCart.quantity}</span>
-                                                      <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, 1); }} className="w-8 h-8 bg-white rounded shadow text-blue-600 flex items-center justify-center hover:bg-blue-50 transition-colors cursor-pointer"><Plus size={14}/></button>
-                                                  </div>
+                                                   <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                                                       <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, -1); }} className="w-8 h-8 bg-white rounded shadow text-slate-600 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-colors cursor-pointer"><Minus size={14}/></button>
+                                                       <input 
+                                                           type="number"
+                                                           step="any"
+                                                           min="0"
+                                                           value={getQtyInputValue(prod.id, inCart.quantity)}
+                                                           onChange={(e) => {
+                                                               const strVal = e.target.value;
+                                                               setQtyInputs(prev => ({ ...prev, [prod.id]: strVal }));
+                                                               const val = parseFloat(strVal);
+                                                               if (!isNaN(val)) {
+                                                                   setCartItemQuantity(prod, val);
+                                                               } else if (strVal === '') {
+                                                                   setCartItemQuantity(prod, 0);
+                                                               }
+                                                           }}
+                                                           onBlur={() => {
+                                                               if (inCart.quantity === 0) {
+                                                                   setCart(prev => prev.filter(i => i.serviceId !== prod.id));
+                                                               }
+                                                               setQtyInputs(prev => {
+                                                                   const copy = { ...prev };
+                                                                   delete copy[prod.id];
+                                                                   return copy;
+                                                               });
+                                                           }}
+                                                           className="font-bold w-14 text-center bg-white border border-slate-250 rounded text-sm p-1 leading-none focus:outline-none focus:border-[#51B01E]"
+                                                       />
+                                                       <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, 1); }} className="w-8 h-8 bg-white rounded shadow text-blue-600 flex items-center justify-center hover:bg-blue-50 transition-colors cursor-pointer"><Plus size={14}/></button>
+                                                   </div>
                                               ) : (
                                                   <button 
                                                       onClick={(e) => { e.stopPropagation(); !isOutOfStock && updateCartItem(prod, 1); }} 
                                                       disabled={isOutOfStock}
-                                                      className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer ${isOutOfStock ? 'bg-slate-300 cursor-not-allowed' : themeColors.primary}`}
+                                                       className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer ${isOutOfStock ? 'bg-slate-300 cursor-not-allowed' : themeColors.primary}`}
                                                   >
                                                       <Plus size={14} /> Agregar
                                                   </button>
                                               )}
                                           </div>
                                       </div>
-                                  </div>
                               );
                           })}
                       </div>
-                  )}
+                   ) : (
+                       <div className="space-y-2.5 overflow-y-auto pr-2 pb-2">
+                           {filteredProducts.map(prod => {
+                               const inCart = getCartItem(prod.id);
+                               const isOutOfStock = prod.trackStock && (prod.stock || 0) <= 0;
+                               
+                               return (
+                                   <div 
+                                       key={prod.id} 
+                                       onClick={() => !isOutOfStock && updateCartItem(prod, 1)}
+                                        className={`bg-white p-3.5 rounded-xl border border-slate-200 hover:border-slate-350 hover:bg-slate-50/50 hover:shadow-sm cursor-pointer transition-all flex items-center justify-between gap-4 select-none ${isOutOfStock ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                   >
+                                       <div className="min-w-0 flex-1 flex items-center gap-3">
+                                           <div className="bg-[#51B01E]/10 text-[#51B01E] p-2.5 rounded-xl flex-none">
+                                               <Package size={20} />
+                                           </div>
+                                           <div className="min-w-0">
+                                               <span className="font-bold text-slate-800 text-base block truncate leading-snug">{prod.name}</span>
+                                               <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
+                                                   <span>Cod: {prod.internalCode || '-'}</span>
+                                                   <span>•</span>
+                                                   <span className={`font-semibold ${isOutOfStock ? 'text-red-500' : 'text-slate-600'}`}>
+                                                       Stock: {prod.stock} {prod.unit}
+                                                   </span>
+                                               </div>
+                                           </div>
+                                       </div>
+
+                                       <div className="flex items-center gap-6 flex-none">
+                                           <div className="text-right">
+                                               <div className={`font-black text-lg ${themeColors.text}`}>{getDisplayCurrencySymbol()} {getDisplayPrice(prod.price).toFixed(2)}</div>
+                                               <span className="text-[10px] uppercase font-black tracking-wider text-slate-400">P. Unit.</span>
+                                           </div>
+
+                                           <div className="w-32 flex justify-end">
+                                               {inCart ? (
+                                                   <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1 border border-slate-200" onClick={(e) => e.stopPropagation()}>
+                                                       <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, -1); }} className="w-8 h-8 bg-white rounded shadow text-slate-600 flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-colors cursor-pointer"><Minus size={14}/></button>
+                                                       <input 
+                                                           type="number"
+                                                           step="any"
+                                                           min="0"
+                                                           value={getQtyInputValue(prod.id, inCart.quantity)}
+                                                           onChange={(e) => {
+                                                               const strVal = e.target.value;
+                                                               setQtyInputs(prev => ({ ...prev, [prod.id]: strVal }));
+                                                               const val = parseFloat(strVal);
+                                                               if (!isNaN(val)) {
+                                                                   setCartItemQuantity(prod, val);
+                                                               } else if (strVal === '') {
+                                                                   setCartItemQuantity(prod, 0);
+                                                               }
+                                                           }}
+                                                           onBlur={() => {
+                                                               if (inCart.quantity === 0) {
+                                                                   setCart(prev => prev.filter(i => i.serviceId !== prod.id));
+                                                               }
+                                                               setQtyInputs(prev => {
+                                                                   const copy = { ...prev };
+                                                                   delete copy[prod.id];
+                                                                   return copy;
+                                                               });
+                                                           }}
+                                                           className="font-bold w-14 text-center bg-white border border-slate-250 rounded text-sm p-1 leading-none focus:outline-none focus:border-[#51B01E]"
+                                                       />
+                                                       <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, 1); }} className="w-8 h-8 bg-white rounded shadow text-blue-600 flex items-center justify-center hover:bg-blue-50 transition-colors cursor-pointer"><Plus size={14}/></button>
+                                                   </div>
+                                               ) : (
+                                                   <button 
+                                                       onClick={(e) => { e.stopPropagation(); !isOutOfStock && updateCartItem(prod, 1); }} 
+                                                       disabled={isOutOfStock}
+                                                       className={`px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer ${isOutOfStock ? 'bg-slate-300 cursor-not-allowed' : themeColors.primary}`}
+                                                   >
+                                                       <Plus size={14} /> Agregar
+                                                   </button>
+                                               )}
+                                           </div>
+                                       </div>
+                                    </div>
+                               );
+                           })}
+                       </div>
+                   )}
               </div>
 
               {/* Desktop Cart Column */}
@@ -2011,7 +2206,7 @@ export const Pos: React.FC = () => {
                       <button 
                         disabled={!selectedCustomer || cart.length === 0}
                         onClick={handleOpenCheckout}
-                        className={`w-full py-[21px] rounded-2xl font-black text-sm tracking-wider uppercase text-white shadow-xl flex items-center justify-center gap-2.5 transition-all duration-300 ${
+                        className={`w-full py-4.5 rounded-2xl font-extrabold text-white shadow-xl text-base flex items-center justify-center gap-2 transition-all duration-300 ${
                             !selectedCustomer || cart.length === 0 
                             ? 'bg-slate-250 border border-slate-300/50 text-slate-400 cursor-not-allowed shadow-none' 
                             : 'bg-gradient-to-r from-[#51B01E] to-[#439618] hover:brightness-[1.08] active:scale-[0.98] cursor-pointer'
@@ -2067,7 +2262,7 @@ export const Pos: React.FC = () => {
                                   <div 
                                       key={prod.id} 
                                       onClick={() => !isOutOfStock && updateCartItem(prod, 1)}
-                                      className={`bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-3 active:bg-slate-50 cursor-pointer select-none ${isOutOfStock ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                       className={`bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-3 active:bg-slate-50 cursor-pointer select-none ${isOutOfStock ? 'opacity-75 cursor-not-allowed' : ''}`}
                                   >
                                       <div className="flex-1 min-w-0">
                                           <div className="font-bold text-slate-800 text-sm truncate mb-0.5">{prod.name}</div>
@@ -2082,14 +2277,28 @@ export const Pos: React.FC = () => {
                                           {inCart ? (
                                                <div className="flex flex-col items-center gap-1 bg-slate-50 rounded-lg p-1 border border-slate-100 shadow-3xs">
                                                     <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, 1); }} className="w-8 h-8 bg-white border border-slate-200 rounded shadow-sm text-blue-600 flex items-center justify-center active:bg-blue-50 cursor-pointer"><Plus size={16}/></button>
-                                                    <span className="font-bold text-sm h-5 flex items-center">{inCart.quantity}</span>
+                                                    <input 
+                                                         type="number"
+                                                         step="any"
+                                                         min="0"
+                                                         value={inCart.quantity === 0 ? '' : inCart.quantity}
+                                                         onChange={(e) => {
+                                                             const val = parseFloat(e.target.value);
+                                                             if (!isNaN(val)) {
+                                                                 setCartItemQuantity(prod, val);
+                                                             } else if (e.target.value === '') {
+                                                                 setCartItemQuantity(prod, 0);
+                                                             }
+                                                         }}
+                                                         className="font-bold w-12 text-center bg-white border border-slate-250 rounded text-xs p-0.5 leading-none h-5 focus:outline-none focus:border-[#51B01E]"
+                                                     />
                                                     <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, -1); }} className="w-8 h-8 bg-white border border-slate-200 rounded shadow-sm text-slate-500 flex items-center justify-center active:bg-red-50 active:text-red-500 cursor-pointer"><Minus size={16}/></button>
                                                </div>
                                           ) : (
                                                <button 
                                                   onClick={(e) => { e.stopPropagation(); !isOutOfStock && updateCartItem(prod, 1); }} 
                                                   disabled={isOutOfStock}
-                                                  className={`${isOutOfStock ? 'bg-slate-300 cursor-not-allowed' : themeColors.primary} text-white w-10 h-10 rounded-xl shadow-md flex items-center justify-center active:scale-95 transition-transform cursor-pointer`}
+                                                   className={`${isOutOfStock ? 'bg-slate-300 cursor-not-allowed' : themeColors.primary} text-white w-10 h-10 rounded-xl shadow-md flex items-center justify-center active:scale-95 transition-transform cursor-pointer`}
                                                >
                                                    <Plus size={24} />
                                                </button>
@@ -2109,7 +2318,7 @@ export const Pos: React.FC = () => {
                                   <div 
                                       key={prod.id} 
                                       onClick={() => !isOutOfStock && updateCartItem(prod, 1)}
-                                      className={`bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-3 active:bg-slate-50 cursor-pointer select-none ${isOutOfStock ? 'opacity-75 cursor-not-allowed' : ''}`}
+                                       className={`bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-3 active:bg-slate-50 cursor-pointer select-none ${isOutOfStock ? 'opacity-75 cursor-not-allowed' : ''}`}
                                   >
                                       <div className="flex-1 min-w-0 flex items-center gap-2.5">
                                           <div className="bg-[#51B01E]/10 text-[#51B01E] p-2 rounded-lg flex-none">
@@ -2130,14 +2339,28 @@ export const Pos: React.FC = () => {
                                           {inCart ? (
                                                <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-1 border border-slate-150 font-sans shadow-3xs">
                                                     <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, -1); }} className="w-7 h-7 bg-white border border-slate-200 rounded shadow-xs text-slate-500 flex items-center justify-center active:bg-red-50 cursor-pointer"><Minus size={12}/></button>
-                                                    <span className="font-bold text-xs w-5 text-center">{inCart.quantity}</span>
+                                                    <input 
+                                                         type="number"
+                                                         step="any"
+                                                         min="0"
+                                                         value={inCart.quantity === 0 ? '' : inCart.quantity}
+                                                         onChange={(e) => {
+                                                             const val = parseFloat(e.target.value);
+                                                             if (!isNaN(val)) {
+                                                                 setCartItemQuantity(prod, val);
+                                                             } else if (e.target.value === '') {
+                                                                 setCartItemQuantity(prod, 0);
+                                                             }
+                                                         }}
+                                                         className="font-bold w-12 text-center bg-white border border-slate-250 rounded text-xs p-0.5 leading-none focus:outline-none focus:border-[#51B01E]"
+                                                     />
                                                     <button onClick={(e) => { e.stopPropagation(); updateCartItem(prod, 1); }} className="w-7 h-7 bg-white border border-slate-200 rounded shadow-xs text-blue-600 flex items-center justify-center active:bg-blue-50 cursor-pointer"><Plus size={12}/></button>
                                                </div>
                                           ) : (
                                                <button 
                                                   onClick={(e) => { e.stopPropagation(); !isOutOfStock && updateCartItem(prod, 1); }} 
                                                   disabled={isOutOfStock}
-                                                  className={`${isOutOfStock ? 'bg-slate-300 cursor-not-allowed' : themeColors.primary} text-white w-9 h-9 rounded-xl shadow flex items-center justify-center active:scale-95 transition-transform cursor-pointer`}
+                                                   className={`${isOutOfStock ? 'bg-slate-300 cursor-not-allowed' : themeColors.primary} text-white w-9 h-9 rounded-xl shadow flex items-center justify-center active:scale-95 transition-transform cursor-pointer`}
                                                >
                                                    <Plus size={18} />
                                                </button>
@@ -2216,7 +2439,7 @@ export const Pos: React.FC = () => {
                           <button 
                               disabled={!selectedCustomer || cart.length === 0}
                               onClick={handleOpenCheckout}
-                              className={`w-full py-5 rounded-2xl font-black text-white shadow-xl text-lg flex items-center justify-center gap-2.5 transition-all duration-300 ${!selectedCustomer || cart.length === 0 ? 'bg-slate-300' : 'bg-gradient-to-r from-[#51B01E] to-[#439618] hover:brightness-[1.08] active:scale-[0.98]'}`}
+                               className={`w-full py-5 rounded-2xl font-black text-white shadow-xl text-lg flex items-center justify-center gap-2.5 transition-all duration-300 ${!selectedCustomer || cart.length === 0 ? 'bg-slate-300' : 'bg-gradient-to-r from-[#51B01E] to-[#439618] hover:brightness-[1.08] active:scale-[0.98]'}`}
                           >
                               <Save size={20} /> Registrar Venta
                           </button>

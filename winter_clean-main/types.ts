@@ -118,6 +118,9 @@ export interface Purchase {
   notes?: string;
   createdBy: string;
   deleted?: boolean;
+  status?: 'pendiente' | 'recibido';
+  invoiceNumber?: string;
+  receivedDate?: string;
 }
 
 export interface PackagingEntry {

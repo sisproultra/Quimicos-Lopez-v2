@@ -797,7 +797,7 @@ export const salesApi = {
             return true;
         }
         try {
-            const isAccepted = sale.sunatResponseCode === "0" || sale.sunatResponseCode === 0;
+            const isAccepted = String(sale.sunatResponseCode || '') === "0";
             const sunatRespValue = isAccepted ? "Aceptado" : (sale.sunatResponseDescription || null);
 
             const { error: saleError } = await supabase.from('sales').insert({
@@ -896,7 +896,7 @@ export const salesApi = {
             return true;
         }
         try {
-            const isAccepted = sale.sunatResponseCode === "0" || sale.sunatResponseCode === 0;
+            const isAccepted = String(sale.sunatResponseCode || '') === "0";
             const sunatRespValue = isAccepted ? "Aceptado" : (sale.sunatResponseDescription || null);
 
             const { error: saleError } = await supabase.from('sales').update({

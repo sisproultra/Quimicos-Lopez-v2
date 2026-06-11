@@ -223,7 +223,9 @@ async function startServer() {
   // API route to proxy the Visioner7 DNI/RUC lookups safely and bypass CORS/proxy issues
   app.get("/api/consultar-doc", async (req, res) => {
     try {
-      const { docType, number, apiToken } = req.query;
+      const docType = typeof req.query.docType === 'string' ? req.query.docType : String(req.query.docType || '');
+      const number = typeof req.query.number === 'string' ? req.query.number : String(req.query.number || '');
+      const apiToken = req.query.apiToken;
 
       if (!docType || !number) {
         return res.status(400).json({ error: "Faltan parámetros requeridos: docType o number" });

@@ -28,13 +28,15 @@ import { GuiaRemisionForm } from './components/GuiaRemisionForm';
 import { 
   Sale, Customer, Service, ViewState, AppContextType, ProductionLog, 
   PaymentMethod, TicketConfig, Employee, Category, MeasurementUnit, SaleStatus,
-  Expense, ExpenseCategory, WashType, PickupRequest, CashShift, SaasConfig, Income, WasteLog, Purchase, Supplier, PackagingEntry,
+  Expense, ExpenseCategory, WashType, PickupRequest, CashShift, SaasConfig, Income, WasteLog, Purchase, PurchaseItem, Supplier, PackagingEntry,
   Quotation, QuotationItem, GuiaRemision
 } from './types';
 
 import { INITIAL_TICKET_CONFIG, INITIAL_SERVICES, INITIAL_CUSTOMERS, INITIAL_EMPLOYEES, INITIAL_PAYMENT_METHODS, INITIAL_SALES, INITIAL_CATEGORIES, INITIAL_UNITS, INITIAL_SUPPLIERS } from './constants';
 import { api } from './services/api';
 import { supabase } from './services/supabaseClient';
+
+import { getLatestSunatExchangeRate } from './services/clientService';
 
 export const AppContext = React.createContext<AppContextType>({} as AppContextType);
 
@@ -154,6 +156,7 @@ const App: React.FC = () => {
   const [theme, setTheme] = usePersistentState<string>('wc_theme', '#51B01E'); 
   const [currency, setCurrency] = useState<string>('S/');
   const [exchangeRate, setExchangeRate] = usePersistentState<number>('wc_exchange_rate', 3.75);
+  const [exchangeRateData, setExchangeRateData] = useState<{ compra: number; venta: number; fecha: string } | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('pos');
 
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
@@ -167,6 +170,24 @@ const App: React.FC = () => {
               sessionStorage.removeItem('winter_clean_user');
           }
       }
+  }, []);
+
+  // Actualizar tasa de cambio de la SUNAT cada mañana (al montar)
+  useEffect(() => {
+    const fetchSunatRate = async () => {
+      try {
+        console.log("Fetching latest SUNAT exchange rate...");
+        const rate = await getLatestSunatExchangeRate();
+        if (rate) {
+          console.log("Latest SUNAT exchange rate loaded successfully:", rate);
+          setExchangeRateData(rate);
+          setExchangeRate(rate.venta);
+        }
+      } catch (err) {
+        console.error("No se pudo obtener la tasa de cambio de la SUNAT:", err);
+      }
+    };
+    fetchSunatRate();
   }, []);
 
   // Fetch real data from Supabase and handle auto-seeding if empty
@@ -1137,7 +1158,11 @@ const App: React.FC = () => {
 
   return (
     <AppContext.Provider value={contextValue}>
-      <Layout currentView={currentView} onChangeView={setCurrentView}>
+      <Layout 
+        currentView={currentView} 
+        onChangeView={setCurrentView}
+        exchangeRateData={exchangeRateData}
+      >
         {renderView()}
       </Layout>
     </AppContext.Provider>

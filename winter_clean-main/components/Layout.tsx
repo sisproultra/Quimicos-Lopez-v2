@@ -39,9 +39,10 @@ interface LayoutProps {
   children: React.ReactNode;
   currentView: ViewState;
   onChangeView: (view: ViewState) => void;
+  exchangeRateData?: { compra: number; venta: number; fecha: string } | null;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeView, exchangeRateData }) => {
   const { themeStyles: themeColors, ticketConfig, currentUser, logout, sales, expenses } = useContext(AppContext);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProductionMenuOpen, setIsProductionMenuOpen] = useState(false);
@@ -196,9 +197,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
         <div className="absolute top-1/4 right-[10%] w-[600px] h-[600px] bg-[#51B01E]/3 rounded-full blur-[130px] pointer-events-none select-none"></div>
         <div className="absolute bottom-1/4 left-[10%] w-[600px] h-[600px] bg-[#DC2626]/2 rounded-full blur-[130px] pointer-events-none select-none"></div>
 
-        <header className="lg:hidden h-16 bg-slate-950 text-white border-b border-slate-900 flex items-center justify-between px-4 flex-shrink-0 relative z-20">
+        <header className="h-16 bg-slate-950 text-white border-b border-slate-900 flex items-center justify-between px-4 flex-shrink-0 relative z-20">
           <div className="flex items-center gap-2">
-            <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-300 hover:bg-slate-900 rounded-lg">
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-300 hover:bg-slate-900 rounded-lg">
               <Menu size={24} />
             </button>
             <span className="font-extrabold text-sm tracking-tight text-white uppercase flex items-center gap-2">
@@ -206,6 +207,33 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
               {ticketConfig.shopName && !ticketConfig.shopName.includes('Winter Clean') ? ticketConfig.shopName : 'Químicos López'}
             </span>
           </div>
+
+          {/* Tipo de Cambio SUNAT */}
+          {exchangeRateData ? (
+            <div className="flex items-center gap-2.5 bg-slate-900/85 border border-slate-800/80 px-3 py-1.5 rounded-xl">
+               <div className="hidden sm:flex flex-col text-right leading-none">
+                 <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Tasa de Cambio</span>
+                 <span className="text-[9px] text-slate-400 font-bold mt-1 leading-none">SUNAT: {exchangeRateData.fecha}</span>
+               </div>
+               <div className="h-5 w-px bg-slate-800 hidden sm:block"></div>
+               <div className="flex gap-2.5 text-[11px] font-mono font-bold leading-none select-none">
+                  <div className="flex flex-col items-center">
+                     <span className="text-[7px] font-extrabold text-[#51B01E] uppercase tracking-wider scale-95 leading-none">Compra</span>
+                     <span className="text-slate-100 text-[11px] font-black mt-1 leading-none">S/ {exchangeRateData.compra.toFixed(3)}</span>
+                  </div>
+                  <div className="h-4.5 w-px bg-slate-800/80"></div>
+                  <div className="flex flex-col items-center">
+                     <span className="text-[7px] font-extrabold text-blue-400 uppercase tracking-wider scale-95 leading-none">Venta</span>
+                     <span className="text-slate-100 text-[11px] font-black mt-1 leading-none">S/ {exchangeRateData.venta.toFixed(3)}</span>
+                  </div>
+               </div>
+            </div>
+          ) : (
+            <div className="text-[10px] font-bold text-slate-400 bg-slate-900/60 px-2.5 py-1.5 rounded-xl border border-slate-800 flex items-center gap-1.5">
+               <span className="w-1.5 h-1.5 rounded-full bg-[#51B01E] animate-pulse"></span>
+               TC SUNAT...
+            </div>
+          )}
         </header>
 
         <div className={`flex-1 ${isFullWidthView ? 'h-full' : 'overflow-y-auto p-4 lg:p-8'} relative z-10`}>
